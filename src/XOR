@@ -1,0 +1,60 @@
+from pysat.solvers import Kissat404
+from pysat.formula import CNF, IDPool
+
+cnf = CNF()
+idpool = IDPool()
+
+names = ['a', 'b', 'c', 'd', 'e']
+
+n = len(names)
+
+variables = [
+    idpool.id('a'),
+    idpool.id('b'),
+    idpool.id('c'),
+    idpool.id('d'),
+    idpool.id('e'),
+]
+
+def xor(cnf: CNF, variables, tablica_bin) -> None:
+    clause = []
+    for var, value in zip(variables, tablica_bin):
+        if value == '1':
+            clause.append(var)
+        else:
+            clause.append(-var)
+
+    cnf.append(clause)
+    
+for tablica in range(0, 2**n):
+    tablica_bin = bin(tablica)[2:].zfill(n)
+    liczba_jedynek = tablica_bin.count('1')
+    reszta = liczba_jedynek % 2
+
+    if reszta == 0:
+        continue
+
+    print(tablica_bin)
+    
+    for name, value in zip(names, tablica_bin):
+        
+        print(name, ':', value)
+
+    print('------')
+
+    xor(cnf, variables, tablica_bin)
+
+    
+
+print(cnf.clauses)
+
+
+with Kissat404(bootstrap_with=cnf) as solver:
+    if solver.solve():
+        model = solver.get_model()
+        print('------------------------------')
+        print('DZIAŁA I JEST ROZWIĄZANIE!!!!')
+        print('rozwiązanie to:', model)
+    else:
+        print('UNSAT')
+        

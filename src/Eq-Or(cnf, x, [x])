@@ -1,0 +1,36 @@
+
+from pysat.solvers import Kissat404
+from pysat.formula import CNF, IDPool
+
+cnf = CNF()
+idp = IDPool()
+
+names = ['a', 'b', 'c', 'd', 'e', 'f', 'g']
+
+variables = [
+    idp.id('a'),
+    idp.id('b'),
+    idp.id('c'),
+    idp.id('d'),
+    idp.id('e'),
+    idp.id('f'),
+    idp.id('g')
+]
+
+for name, var in zip(names, variables):
+    print(name, ":", var)
+
+
+def equals(cnf: CNF, variables) -> None:
+    first_var = variables[0]
+
+    for next_var in variables[1:]:
+        cnf.append([first_var, -next_var])
+
+    clause = [-first_var] + [var for var in variables[1:]]
+    cnf.append(clause) 
+                
+equals(cnf, variables)
+
+print("CNF clauses:", cnf.clauses)
+        

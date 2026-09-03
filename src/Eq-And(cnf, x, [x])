@@ -1,0 +1,38 @@
+from pysat.solvers import Kissat404
+from pysat.formula import CNF, IDPool
+
+cnf = CNF()
+idpool = IDPool()
+
+variables = [
+    idpool.id('a'),
+    idpool.id('b'),
+    idpool.id('c'),
+    idpool.id('d'),
+    idpool.id('e'),
+    idpool.id('f'),
+]
+
+for name, var in zip(['a', 'b', 'c', 'd', 'e', 'f'], variables):
+    print(name, ":", var)
+
+def equals(cnf: CNF, variables) -> None:
+
+    first_var = variables[0]
+
+    for next_var in variables[1:]:
+        cnf.append([-first_var, next_var])
+
+    clause = [first_var] + [-var for var in variables[1:]]
+    cnf.append(clause)
+
+equals(cnf, variables)
+
+print("CNF clauses:", cnf.clauses)
+
+with Kissat404(bootstrap_with=cnf) as solver:
+    if solver.solve():
+        model = solver.get_model()
+        print("Satisfiable. Model:", model)
+    else:
+        print("Unsatisfiable.")
