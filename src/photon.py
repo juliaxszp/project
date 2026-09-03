@@ -8,5 +8,3 @@ def addconstantphoton(self, state, new_state, k):
     for j in range(1, 8):
         for i in range(8):
             self.equals(state[i][j], new_state[i][j])
-
-
