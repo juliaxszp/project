@@ -1,6 +1,5 @@
 from basics import *
 
-
 builder = BasicFunctions()
 
 x = builder.var("x")
