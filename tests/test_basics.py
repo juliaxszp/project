@@ -1,4 +1,4 @@
-from src.functions import equals, equals_or, equals_and, xor
+from src.basics import BasicFunctions
 from pysat.solvers import Kissat404
 from pysat.formula import CNF, IDPool
 
@@ -13,25 +13,24 @@ def test_equals():
     ]
 
     for a_value, b_value, expected in tests:
-        cnf = CNF()
-        idp = IDPool()
+        builder = BasicFunctions()
 
-        a = idp.id("a")
-        b = idp.id("b")
+        a = builder.var("a")
+        b = builder.var("b")
 
-        equals(cnf, a, b)
+        builder.equals(a, b)
 
         if a_value:
-            cnf.append([a])
+            builder.cnf.append([a])
         else:
-            cnf.append([-a])
+            builder.cnf.append([-a])
 
         if b_value:
-            cnf.append([b])
+            builder.cnf.append([b])
         else:
-            cnf.append([-b])
+            builder.cnf.append([-b])
 
-        with Kissat404(bootstrap_with=cnf.clauses) as solver:
+        with Kissat404(bootstrap_with=builder.cnf.clauses) as solver:
             result = solver.solve()
 
         print(
@@ -43,8 +42,8 @@ def test_equals():
 
     print()
 
-def test_equals_or():
-    print("TEST equals_or")
+def test_equal_or():
+    print("TEST equal_or")
 
     tests = [
         (False, False, False, True),
@@ -59,31 +58,30 @@ def test_equals_or():
     ]
 
     for a_value, b_value, c_value, expected in tests:
-        cnf = CNF()
-        idp = IDPool()
+        builder = BasicFunctions()
 
-        a = idp.id("a")
-        b = idp.id("b")
-        c = idp.id("c")
+        a = builder.var("a")
+        b = builder.var("b")
+        c = builder.var("c")
 
-        equals_or(cnf, a, [b, c])
+        builder.equal_or(a, [b, c])
 
         if a_value:
-            cnf.append([a])
+            builder.cnf.append([a])
         else:
-            cnf.append([-a])
+            builder.cnf.append([-a])
 
         if b_value:
-            cnf.append([b])
+            builder.cnf.append([b])
         else:
-            cnf.append([-b])
+            builder.cnf.append([-b])
 
         if c_value:
-            cnf.append([c])
+            builder.cnf.append([c])
         else:
-            cnf.append([-c])
+            builder.cnf.append([-c])
 
-        with Kissat404(bootstrap_with=cnf.clauses) as solver:
+        with Kissat404(bootstrap_with=builder.cnf.clauses) as solver:
             result = solver.solve()
 
         print(
@@ -96,8 +94,8 @@ def test_equals_or():
 
     print()
 
-def test_equals_and():
-    print("TEST equals_and")
+def test_equal_and():
+    print("TEST equal_and")
 
     tests = [
         (False, False, False, True),
@@ -112,31 +110,30 @@ def test_equals_and():
     ]
 
     for a_value, b_value, c_value, expected in tests:
-        cnf = CNF()
-        idp = IDPool()
+        builder = BasicFunctions()
 
-        a = idp.id("a")
-        b = idp.id("b")
-        c = idp.id("c")
+        a = builder.var("a")
+        b = builder.var("b")
+        c = builder.var("c")
 
-        equals_and(cnf, a, [b, c])
+        builder.equal_and(a, [b, c])
 
         if a_value:
-            cnf.append([a])
+            builder.cnf.append([a])
         else:
-            cnf.append([-a])
+            builder.cnf.append([-a])
 
         if b_value:
-            cnf.append([b])
+            builder.cnf.append([b])
         else:
-            cnf.append([-b])
+            builder.cnf.append([-b])
 
         if c_value:
-            cnf.append([c])
+            builder.cnf.append([c])
         else:
-            cnf.append([-c])
+            builder.cnf.append([-c])
 
-        with Kissat404(bootstrap_with=cnf.clauses) as solver:
+        with Kissat404(bootstrap_with=builder.cnf.clauses) as solver:
             result = solver.solve()
 
         print(
@@ -165,31 +162,30 @@ def test_xor():
     ]
 
     for a_value, b_value, c_value, expected in tests:
-        cnf = CNF()
-        idp = IDPool()
+        builder = BasicFunctions()
 
-        a = idp.id("a")
-        b = idp.id("b")
-        c = idp.id("c")
+        a = builder.var("a")
+        b = builder.var("b")
+        c = builder.var("c")
 
-        xor(cnf, [a, b, c])
+        builder.xor([a, b, c])
 
         if a_value:
-            cnf.append([a])
+            builder.cnf.append([a])
         else:
-            cnf.append([-a])
+            builder.cnf.append([-a])
 
         if b_value:
-            cnf.append([b])
+            builder.cnf.append([b])
         else:
-            cnf.append([-b])
+            builder.cnf.append([-b])
 
         if c_value:
-            cnf.append([c])
+            builder.cnf.append([c])
         else:
-            cnf.append([-c])
+            builder.cnf.append([-c])
 
-        with Kissat404(bootstrap_with=cnf.clauses) as solver:
+        with Kissat404(bootstrap_with=builder.cnf.clauses) as solver:
             result = solver.solve()
 
         print(
@@ -201,8 +197,3 @@ def test_xor():
         )
 
     print()
-
-test_equals()
-test_equals_or()
-test_equals_and()
-test_xor()
