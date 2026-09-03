@@ -1,8 +1,6 @@
 from pysat.formula import CNF, IDPool
 from itertools import product
 
-
-
 class Builder:
     def __init__(self):
         self.cnf = CNF()
@@ -11,8 +9,6 @@ class Builder:
     def var(self, name):
         return self.idp.id(name)
 
-
-    
 class BasicFunctions(Builder):
     def equals(self, var_a, var_b):
             self.cnf.append([var_a, -var_b])
@@ -29,7 +25,6 @@ class BasicFunctions(Builder):
             self.cnf.append([var_a, -var])
 
         self.cnf.append([-var_a] + [var for var in vars])
-
 
     def xor(self, vars: list) -> None:
         n = len(vars)
