@@ -7,9 +7,9 @@ IC = [0, 1, 3, 7, 15, 14, 12, 8]
 #czesc do addconstant
 def xor_bits(self, x, y, b):   #b = y xor x, gdzie y to nowy bit
     if b == 0:  # b = 0, czyli y = x
-        self.xor([x, y])
+        self.equals(x, y)
     else:  # b = 1, czyli y = not x
-        self.xor([x, -y])
+        self.equals_not([x, -y])
 
 def xor_const(self, var_1, var_2, var_3):
     for i in range(len(var_1)):                              #zmiana z 4 bitów na dlugosc jednej zmiennej na potrzeby innych szyfrow
