@@ -26,3 +26,15 @@ def test_permutation():
         model = solver.get_model()
 
     print(model)
+
+    output_values = []
+
+    for var in result:
+        if var in model:
+            output_values.append(1)
+        else:
+            output_values.append(0)
+
+    print("output:", output_values)
+
+    assert output_values == [0, 1, 1, 0]
