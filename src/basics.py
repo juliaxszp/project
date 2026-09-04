@@ -14,6 +14,10 @@ class BasicFunctions(Builder):
             self.cnf.append([var_a, -var_b])
             self.cnf.append([-var_a, var_b])
 
+    def equals_not(self, var_a, var_b):
+        self.cnf.append([var_a, var_b])
+        self.cnf.append([-var_a, -var_b])
+        
     def equal_and(self, var_a, vars:list) -> None:
         for var in vars:
             self.cnf.append([-var_a, var])
@@ -39,3 +43,5 @@ class BasicFunctions(Builder):
                         clause.append(-var)
 
                 self.cnf.append(clause)
+
+
