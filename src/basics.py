@@ -33,7 +33,7 @@ class BasicFunctions(Builder):
     def xor(self, vars: list) -> None:
         n = len(vars)
         for values in product([0, 1], repeat=n):
-            if values.count(1) % 2 == 0:
+            if values.count(1) % 2 == 1:
                 clause = []
 
                 for var, value in zip(vars, values):
