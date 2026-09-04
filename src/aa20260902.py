@@ -24,7 +24,6 @@ def sor(cnf: CNF, var_a: int, zmienne, liczba_zmiennych) -> None:
         dluga_klauzula.append(zmienne[j])
     cnf.append([-var_a] + dluga_klauzula)
 
-
 def sxor(cnf: CNF, var_a: int, zmienne, liczba_zmiennych) -> None:
     #tu można pomyśleć o a_var i reszta jako równanie a_var xor inne (z xorami między) = 0
     n = liczba_zmiennych + 1
@@ -40,17 +39,18 @@ def sxor(cnf: CNF, var_a: int, zmienne, liczba_zmiennych) -> None:
             if bini[j] == 1:
                 szablonowa[j] = -szablonowa[j]
         lista_roboczych_klauzul.append(szablonowa)
-    #tutaj usuwamy klauzule z parzystą ilością pozytywnych literałów parzystych > 0
+    #tutaj usuwamy klauzule z parzystą ilością pozytywnych literałów
     lista_do_usuniecia = []
     for k in range(len(lista_roboczych_klauzul)):
         liczba = sum(1 for x in lista_roboczych_klauzul[k] if x > 0)
-        if liczba % 2 == 0 and liczba > 0:
+        if liczba % 2 == 0:
             lista_do_usuniecia.append(lista_roboczych_klauzul[k])
     for klauzula in lista_do_usuniecia:
         lista_roboczych_klauzul.remove(klauzula)
     #już mamy wszystkie klauzule które chcemy.
     for m in range(len(lista_roboczych_klauzul)):
         cnf.append(lista_roboczych_klauzul[m])
+
 
 
 if __name__ == "__main__":
