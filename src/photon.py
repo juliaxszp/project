@@ -14,3 +14,8 @@ def shift_rows_photon(self, state, new_state):
         for j  in range(8):
             self.equals(state[i][j], new_state[i][(i + j)% 8])
 
+def subcells_photon(self, state, new_state):
+    for i in range(8):
+        for j in range(8):
+            self.equals(new_state[i][j], Sbox[state[i][j]])
+
