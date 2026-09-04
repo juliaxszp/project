@@ -67,7 +67,6 @@ def gf16_mul(Builder, var_a, var_b, prefix):           #mnozenie w GF16 pojedync
 
     return [r0, r1, r2, r3]
 
-
 def gf16_matrix(Builder, var_a):
     result = []
 
@@ -89,4 +88,3 @@ def gf16_matrix(Builder, var_a):
         product = Builder.gf16_mul(var_a[i], var_b, f"matrix_{i}")
         result.append(product)
     return result
-
