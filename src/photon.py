@@ -12,5 +12,10 @@ def add_constant_photon(self, state, new_state, k):
 def shift_rows_photon(self, state, new_state):
     for i in range(8):
         for j  in range(8):
-            self.equals(state[i][j], new_state[i][(i + j)% 8])
+            self.equals(new_state[i][j], state[i][(i + j)% 8])
+
+def sbox_photon(self, state, new_state):
+    for i in range(8):
+        for j in range(8):
+            self.equals(new_state[i][j], SBOXphoton[state[i][j]])
 
