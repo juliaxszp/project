@@ -43,5 +43,3 @@ class BasicFunctions(Builder):
                         clause.append(-var)
 
                 self.cnf.append(clause)
-
-
