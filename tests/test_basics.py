@@ -1,6 +1,5 @@
 from src.basics import BasicFunctions
 from pysat.solvers import Kissat404
-from pysat.formula import CNF, IDPool
 
 def test_equals():
     print("TEST equals")
@@ -33,14 +32,40 @@ def test_equals():
         with Kissat404(bootstrap_with=builder.cnf.clauses) as solver:
             result = solver.solve()
 
-        print(
-            "a =", a_value,
-            "b =", b_value,
-            "| wynik =", result,
-            "| oczekiwano =", expected
-        )
+        assert result == expected
 
-    print()
+def test_equals_not():
+    print("TEST equals")
+
+    tests = [
+        (False, False, False),
+        (False, True, True),
+        (True, False, True),
+        (True, True, False),
+    ]
+
+    for a_value, b_value, expected in tests:
+        builder = BasicFunctions()
+
+        a = builder.var("a")
+        b = builder.var("b")
+
+        builder.equals_not(a, b)
+
+        if a_value:
+            builder.cnf.append([a])
+        else:
+            builder.cnf.append([-a])
+
+        if b_value:
+            builder.cnf.append([b])
+        else:
+            builder.cnf.append([-b])
+
+        with Kissat404(bootstrap_with=builder.cnf.clauses) as solver:
+            result = solver.solve()
+
+        assert result == expected
 
 def test_equal_or():
     print("TEST equal_or")
@@ -84,15 +109,7 @@ def test_equal_or():
         with Kissat404(bootstrap_with=builder.cnf.clauses) as solver:
             result = solver.solve()
 
-        print(
-            "a =", a_value,
-            "b =", b_value,
-            "c =", c_value,
-            "| wynik =", result,
-            "| oczekiwano =", expected
-        )
-
-    print()
+        assert result == expected
 
 def test_equal_and():
     print("TEST equal_and")
@@ -136,15 +153,7 @@ def test_equal_and():
         with Kissat404(bootstrap_with=builder.cnf.clauses) as solver:
             result = solver.solve()
 
-        print(
-            "a =", a_value,
-            "b =", b_value,
-            "c =", c_value,
-            "| wynik =", result,
-            "| oczekiwano =", expected
-        )
-
-    print()
+        assert result == expected
 
 def test_xor():
     print("TEST xor")
@@ -188,12 +197,4 @@ def test_xor():
         with Kissat404(bootstrap_with=builder.cnf.clauses) as solver:
             result = solver.solve()
 
-        print(
-            "a =", a_value,
-            "b =", b_value,
-            "c =", c_value,
-            "| wynik =", result,
-            "| oczekiwano =", expected
-        )
-
-    print()
+        assert result == expected
