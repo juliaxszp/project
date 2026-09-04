@@ -161,7 +161,7 @@ def test_otp_recover_plaintext():
 
         assert plaintext_values == expected_plaintext
 
-def test_otp_wrong_key():
+def test_otp_wrong():
     builder = BasicFunctions()
 
     plaintext = builder.var("plaintext")
