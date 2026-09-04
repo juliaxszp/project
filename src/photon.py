@@ -19,8 +19,3 @@ def sbox_photon(self, state, new_state):
         for j in range(8):
             self.equals(new_state[i][j], SBOXphoton[state[i][j]])
 
-def subcells_photon(self, state, new_state):
-    for i in range(8):
-        for j in range(8):
-            self.equals(new_state[i][j], Sbox[state[i][j]])
-
