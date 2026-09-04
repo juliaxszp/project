@@ -1,4 +1,4 @@
-from basics import *
+from .basics import *
 
 #const
 RC = [1, 3, 7, 14, 13, 11, 6, 12, 9, 2, 5, 10]
@@ -6,14 +6,14 @@ IC = [0, 1, 3, 7, 15, 14, 12, 8]
 Sboxphoton = [0xC, 0x5, 0x6, 0xB, 0x9, 0x0, 0xA, 0xD, 0x3, 0xE, 0xF, 0x8, 0x4, 0x7, 0x1, 0x2]
 GF16photon = [0x2, 0x4, 0x2, 0xB, 0x2, 0x8, 0x5, 0x6]
 
-def permutation(input_vars, perm):
+def permutation(Builder, input_vars, perm):
     output_vars = []
 
     for i in range(len(perm)):
         input_var = input_vars[perm[i]]
-        output_var = builder.var(f"out_{i}")
+        output_var = Builder.var(f"out_{i}")
 
-        builder.equals(output_var, input_var)
+        Builder.equals(output_var, input_var)
 
         output_vars.append(output_var)
 
