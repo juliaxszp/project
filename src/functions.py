@@ -22,8 +22,8 @@ def xor_bits(Builder, x, y, b):   #b = y xor x, gdzie y to nowy bit
     if b == 0:  # b = 0, czyli y = x
         Builder.equals(x, y)
     else:  # b = 1, czyli y = not x
-        Builder.equals_not([x, -y])
+        Builder.equals_not(x, y)
 
 def xor_const(Builder, var_1, var_2, var_3):
     for i in range(len(var_1)):                              #zmiana z 4 bitów na dlugosc jednej zmiennej na potrzeby innych szyfrow
-        Builder.xor_bits(var_1[i], var_2[i], var_3[i])
+        xor_bits(Builder, var_1[i], var_2[i], var_3[i])
