@@ -4,7 +4,7 @@ def add_constant_photon(Builder, state, new_state, k):
     for i in range(8):
         constant = RC[k] ^ IC[i]
         constant_bits = [(constant >> j) & 1 for j in range(4)]
-        Builder.xor_const(state[i][0], new_state[i][0], constant_bits)
+        xor_const(Builder, state[i][0], new_state[i][0], constant_bits)
     for j in range(1, 8):
         for i in range(8):
             Builder.equals(state[i][j], new_state[i][j])
