@@ -57,6 +57,6 @@ def mix_columns_photon(Builder, state, new_state):
 
 
         for bit in range(4):
-            Builder.xor([new_state[7][l][bit] + product[bit] for product in products])
+            Builder.xor([new_state[7][l][bit]] + [product[bit] for product in products])
 
     
