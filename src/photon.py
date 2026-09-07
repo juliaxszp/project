@@ -7,12 +7,14 @@ def add_constant_photon(Builder, state, new_state, k):
         xor_const(Builder, state[i][0], new_state[i][0], constant_bits)
     for j in range(1, 8):
         for i in range(8):
-            Builder.equals(state[i][j], new_state[i][j])
+            for b in range(4):
+                Builder.equals(state[i][j][b], new_state[i][j][b])
 
 def shift_rows_photon(Builder, state, new_state):
     for i in range(8):
         for j  in range(8):
-            Builder.equals(new_state[i][j], state[i][(i + j)% 8])
+            for b in range(4):
+                Builder.equals(new_state[i][j][b], state[i][(i + j) % 8][b])
 
 def sbox_photon(Builder, state, new_state):
     for i in range(8):
