@@ -19,7 +19,31 @@ def shift_rows_photon(Builder, state, new_state):
 def sbox_photon(Builder, state, new_state):
     for i in range(8):
         for j in range(8):
-            Builder.equals(new_state[i][j], SBOXphoton[state[i][j]])
+
+            for index in range(16):
+                output = SBOXphoton[index]
+
+                input_bits = [(index >> b) & 1 for b in range(4)]
+                output_bits = [(output >> b) & 1 for b in range(4)]
+
+                
+                for b in range(4):
+
+                    clause = []
+
+                    for k in range(4):
+                        if input_bits[k] == 0:
+                            clause.append(state[i][j][k])
+                        else:
+                            clause.append(-state[i][j][k])
+
+                    if output_bits[b] == 0:
+                        clause.append(-new_state[i][j][b])
+                    else:
+                        clause.append(new_state[i][j][b])
+
+                    Builder.cnf.append(clause)
+            
 
 def mix_columns_photon(Builder, state, new_state):
 
