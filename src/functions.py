@@ -1,4 +1,4 @@
-from .basics import *
+from basics import *
 
 #const
 RC = [1, 3, 7, 14, 13, 11, 6, 12, 9, 2, 5, 10]
@@ -86,7 +86,7 @@ def gf16_const_mult(Builder, var_a):
 
             var_b.append(c)
 
-        product = Builder.gf16_mul(var_a[i], var_b, f"matrix_{i}")
+        product = gf16_mul(Builder, var_a[i], var_b, f"matrix_{i}")
         result.append(product)
     return result
 
