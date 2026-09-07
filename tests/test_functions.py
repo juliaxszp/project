@@ -1,5 +1,5 @@
 from src.basics import BasicFunctions
-from src.functions import permutation, xor_bits, xor_const
+from src.functions import *
 from pysat.solvers import Kissat404
 
 def test_permutation():
@@ -138,6 +138,60 @@ def test_xor_const():
         )
 
         for var, value in zip(input_vars, input_values):
+            if value == 1:
+                builder.cnf.append([var])
+            else:
+                builder.cnf.append([-var])
+
+        with Kissat404(bootstrap_with=builder.cnf.clauses) as solver:
+            assert solver.solve()
+            model = solver.get_model()
+
+        output_values = []
+
+        for var in output_vars:
+            if var in model:
+                output_values.append(1)
+            else:
+                output_values.append(0)
+
+        assert output_values == expected
+
+def test_add_round_key():
+    tests = [
+        ([0], [0], [0]),
+        ([0], [1], [1]),
+        ([1], [0], [1]),
+        ([1], [1], [0]),
+
+        ([1, 0, 1, 1], [0, 1, 1, 0], [1, 1, 0, 1]),
+        ([0, 0, 0, 0], [1, 1, 1, 1], [1, 1, 1, 1]),
+        ([1, 1, 1, 1], [1, 1, 1, 1], [0, 0, 0, 0]),
+    ]
+
+    for state_values, key_values, expected in tests:
+        builder = BasicFunctions()
+
+        state_vars = []
+        key_vars = []
+
+        for i in range(len(state_values)):
+            state_vars.append(builder.var(f"state_{i}"))
+            key_vars.append(builder.var(f"key_{i}"))
+
+        output_vars = add_round_key(
+            builder,
+            state_vars,
+            key_vars
+        )
+
+        for var, value in zip(state_vars, state_values):
+            if value == 1:
+                builder.cnf.append([var])
+            else:
+                builder.cnf.append([-var])
+
+        for var, value in zip(key_vars, key_values):
             if value == 1:
                 builder.cnf.append([var])
             else:
