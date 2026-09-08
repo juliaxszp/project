@@ -4,7 +4,7 @@ from pysat.formula import CNF, IDPool
 cnf = CNF()
 idpool = IDPool()
 
-names = ['a', 'b', 'c', 'd', 'e']
+names = ['a', 'b', 'c', 'd']
 
 n = len(names)
 
@@ -13,7 +13,6 @@ variables = [
     idpool.id('b'),
     idpool.id('c'),
     idpool.id('d'),
-    idpool.id('e'),
 ]
 
 def xor(cnf: CNF, variables, tablica_bin) -> None:
@@ -58,3 +57,42 @@ with Kissat404(bootstrap_with=cnf) as solver:
     else:
         print('UNSAT')
         
+for liczba in range(2**n):
+    wektor_bin = bin(liczba)[2:].zfill(n)
+
+    wektor = []
+
+    for bit in wektor_bin:
+        bit = int(bit)
+        wektor.append(bit)
+    jedynki = wektor.count(1)
+    podzielność = jedynki % 2
+
+    if podzielność == 1:
+        expected = True
+    else:
+        expected = False
+
+    test_cnf = CNF()
+    for tablica in range(0, 2**n):
+        tablica_bin = bin(tablica)[2:].zfill(n)
+        liczba_jedynek = tablica_bin.count('1')
+        reszta = liczba_jedynek % 2
+        if reszta == 0:
+            continue
+
+        xor(test_cnf, variables, tablica_bin)
+    for var, value in zip(variables, wektor):
+        if value == 1:
+            test_cnf.append([var])
+        else: test_cnf.append([-var])
+
+    with Kissat404(bootstrap_with=test_cnf) as solver:
+        result = solver.solve()
+
+        if result == expected:
+            print('Test', wektor, expected, 'OK')
+        else: 
+            print('Test', wektor, expected, 'ŹLE, COŚ NIE DZIAŁA')
+
+

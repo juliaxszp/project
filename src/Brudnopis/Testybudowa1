@@ -1,0 +1,142 @@
+a_str = "a"
+b_str = "b"
+
+print(a_str, b_str)
+
+print(type(a_str), type(b_str))
+
+a_var = 1
+b_var = 2
+
+print(a_var, b_var)
+print(type(a_var), type(b_var))
+
+def show(c, d):
+    print("c:", c)
+    print("d:", d)
+    print("Type of c:", type(c))
+    print("Type of d:", type(d))
+
+x = 20
+z = 11
+show(x, z)
+
+
+def add_numbers(lista, number):
+    lista.append(number)
+
+numbers = []
+
+add_numbers(numbers, 5)
+add_numbers(numbers, 10)
+add_numbers(numbers, 5111)
+
+print("Numbers list:", numbers)
+
+
+
+
+
+
+def add_a(lista, a) -> None:
+
+    lista.append(a)
+
+pozdro = []
+a = 8
+add_a(pozdro, "m")
+add_a(pozdro, a)
+
+print("Lista pozdro:", pozdro)
+
+
+
+def add_c(lista) -> None:
+
+    lista.append("a")
+pozdronone = []
+
+print("Lista pozdronone:", pozdronone)
+
+
+
+def make_a(lista) -> list:
+    lista.append("a")
+    return lista
+
+pozdro = ['cwel']
+wynik = make_a(pozdro)
+print("Lista pozdro after make_a:", pozdro)
+print("Lista pozdro after make_a:", wynik)
+
+
+
+from pysat.formula import CNF
+
+
+cnf = CNF()
+
+cnf.append([1, 2])
+
+print(cnf.clauses)
+
+from pysat.formula import IDPool
+
+idp = IDPool()
+
+id_a = idp.id('a')
+id_b = idp.id('b')
+
+print("ID for 'a':", id_a)
+print("ID for 'b':", id_b)
+
+
+piotr = idp.id('a')
+print("ID for 'piotr':", piotr)
+
+
+
+
+a_str = "a"
+a_var = idp.id(a_str)
+print("ID for 'a_str':", a_var)
+
+print(a_str)
+print(a_var)
+
+print(type(a_str))
+print(type(a_var))
+
+from pysat.solvers import Kissat404
+
+cnf = CNF()
+idp = IDPool()
+
+def test(cnf: CNF, var_h, var_w, var_d, var_p) -> None:
+    cnf.append([var_h, var_w])
+    cnf.append([-var_w, var_d])
+    cnf.append([-var_w])
+    cnf.append([-var_d, var_p])
+    cnf.append([-var_h])
+
+h = idp.id('h')
+w = idp.id('w')
+d = idp.id('d')
+p = idp.id('p')
+
+print("IDs for variables:")
+print("h:", h)
+print("w:", w)
+print("d:", d)
+print("p:", p)
+
+test(cnf, h, w, d, p)
+
+print("CNF clauses after test:", cnf.clauses)
+
+with Kissat404(bootstrap_with=cnf) as solver:
+    if solver.solve():
+        model = solver.get_model()
+        print("Satisfiable. Model:", model)
+    else:
+        print("Unsatisfiable.")
