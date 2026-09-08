@@ -68,7 +68,7 @@ def gf16_mul(Builder, var_a, var_b, prefix):           #mnozenie w GF16 pojedync
     return [r0, r1, r2, r3]
 
 
-def gf16_const_mult(Builder, var_a):
+def gf16_const_mult(Builder, var_a, prefix):
     result = []
 
     for i in range(8):
@@ -77,7 +77,7 @@ def gf16_const_mult(Builder, var_a):
         var_b=[]
 
         for j in range(4):
-            c = Builder.var(f"constant_{i}_{j}")
+            c = Builder.var(f"{prefix}_constant_{i}_{j}")
 
             if constant_bits[j] == 1:
                 Builder.cnf.append([c])
@@ -86,9 +86,12 @@ def gf16_const_mult(Builder, var_a):
 
             var_b.append(c)
 
-        product = gf16_mul(Builder, var_a[i], var_b, f"matrix_{i}")
+        product = gf16_mul(Builder, var_a[i], var_b, f"{prefix}_matrix_{i}")
         result.append(product)
     return result
 
+
+
+    
 
 
