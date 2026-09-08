@@ -23,6 +23,16 @@ class BasicFunctions(Builder):
             self.cnf.append([-var_a, var])
 
         self.cnf.append([var_a] + [-var for var in vars])
+    def equal_andn(vectors):
+        a = 1
+        for i in vectors:
+            a &= i
+        return a
+    def xorn(vectors):
+        a = 0
+        for i in vectors:
+            a ^= i
+        return a
 
     def equal_or(self, var_a, vars: list) -> None:
         for var in vars:
