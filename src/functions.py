@@ -1,10 +1,5 @@
 from .basics import *
-
-#const
-RC = [1, 3, 7, 14, 13, 11, 6, 12, 9, 2, 5, 10]
-IC = [0, 1, 3, 7, 15, 14, 12, 8]
-Sboxphoton = [0xC, 0x5, 0x6, 0xB, 0x9, 0x0, 0xA, 0xD, 0x3, 0xE, 0xF, 0x8, 0x4, 0x7, 0x1, 0x2]
-GF16photon = [0x2, 0x4, 0x2, 0xB, 0x2, 0x8, 0x5, 0x6]
+from itertools import product
 
 def permutation(Builder, input_vars, perm):
     output_vars = []
@@ -38,5 +33,50 @@ def add_round_key(Builder, state_vars, key_vars):
         Builder.xor([state_vars[i], key_vars[i], output_var])
 
         output_vars.append(output_var)
+
+    return output_vars  
+
+def sbox(builder, input_vars, sbox_table, output_size, prefix="sbox"):
+    input_size = len(input_vars)
+
+    output_vars = []
+
+    for i in range(output_size):
+        output_var = builder.var(f"{prefix}_out_{i}")
+        output_vars.append(output_var)
+
+    for input_value in range(2 ** input_size):
+        expected_output = sbox_table[input_value]
+
+        input_bits = []
+        for i in range(input_size):
+            bit = (input_value >> i) & 1
+            input_bits.append(bit)
+
+        expected_bits = []
+        for i in range(output_size):
+            bit = (expected_output >> i) & 1
+            expected_bits.append(bit)
+
+        for possible_output in product([0, 1], repeat=output_size):
+
+            if list(possible_output) == expected_bits:
+                continue
+
+            clause = []
+
+            for var, bit in zip(input_vars, input_bits):
+                if bit == 0:
+                    clause.append(var)
+                else:
+                    clause.append(-var)
+
+            for var, bit in zip(output_vars, possible_output):
+                if bit == 0:
+                    clause.append(var)
+                else:
+                    clause.append(-var)
+
+            builder.cnf.append(clause)
 
     return output_vars
