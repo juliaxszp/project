@@ -21,11 +21,10 @@ def sbox_photon(Builder, state, new_state):
         for j in range(8):
 
             for index in range(16):
-                output = SBOXphoton[index]
+                output = Sboxphoton[index]
 
                 input_bits = [(index >> b) & 1 for b in range(4)]
                 output_bits = [(output >> b) & 1 for b in range(4)]
-
                 
                 for b in range(4):
 
@@ -49,14 +48,33 @@ def mix_columns_photon(Builder, state, new_state):
 
     for l in range(8):
         column = [state[j][l] for j in range(8)]
-        products = gf16_const_mult(Builder, column)
 
-        for i in range(7):
+        for step in range(8):
+            products = gf16_const_mult(Builder, column, f"column_{l}, step_{step}")
+
+            next_column = []
+
+            for i in range(7):
+                nibble = []
+                for bit in range(4):
+                    x = Builder.var(f"column{l}_step_{step}_nibble_{i}_{bit}")
+                    Builder.equals(x, column[i+1][bit])
+                    nibble.append(x)
+                next_column.append(nibble)
+
+            last_nibble = []
+
             for bit in range(4):
-                Builder.equals(new_state[i][l][bit], column[i+1][bit])
+                x = Builder.var(f"column_{l}_step{step}_last_{bit}")
+                Builder.xor([x] + [product[bit] for product in products])
+                last_nibble.append(x)
+            next_column.append(last_nibble)
+
+            column = next_column
+            
+        for i in range(8):
+            for bit in range(4):
+                Builder.equals(new_state[i][l][bit], column[i][bit])
 
 
-        for bit in range(4):
-            Builder.xor([new_state[7][l][bit]] + [product[bit] for product in products])
 
-    
