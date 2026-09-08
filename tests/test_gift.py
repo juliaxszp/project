@@ -1,5 +1,5 @@
 from src.basics import BasicFunctions
-from src.gift import *
+from src.gift import gift_subcells, GIFT_SBOX
 from pysat.solvers import Kissat404
 
 def test_gift_subcells():
