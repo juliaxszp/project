@@ -1,0 +1,52 @@
+from pysat.formula import CNF, IDPool
+from pysat.solvers import Kissat404
+
+cnf = CNF()
+idpool = IDPool()
+
+def equals(cnf: CNF, var_a: int, var_b: int) -> None:
+    cnf.append([-var_a, var_b])
+    cnf.append([var_a, -var_b])
+
+a = idpool.id('a')
+b = idpool.id('b')
+
+equals(cnf, a, b)
+
+print("CNF clauses:", cnf.clauses)
+
+with Kissat404(bootstrap_with=cnf) as solver:
+    if solver.solve():
+        model = solver.get_model()
+        print("Satisfiable. Model:", model)
+    else:
+        print("Unsatisfiable.")
+
+
+test_vectors = [
+    ([0, 0], True),
+    ([0, 1], False),
+    ([1, 0], False),
+    ([1, 1], True)
+]
+
+def test_equals(test_vectors):
+    for vector, expected in test_vectors:
+        test_cnf = CNF()
+        equals(test_cnf, a, b)
+        for var, value in zip([a, b], vector):
+            if value == 1:
+                test_cnf.append([var])
+            else:
+                test_cnf.append([-var])
+
+        with Kissat404(bootstrap_with=test_cnf) as solver:
+            result = solver.solve()
+
+            if result == expected:
+                print('Test', vector, 'OK')
+            else: 
+                print('Test', vector, 'ŹLE, COŚ NIE DZIAŁA')
+
+test_equals(test_vectors)
+    

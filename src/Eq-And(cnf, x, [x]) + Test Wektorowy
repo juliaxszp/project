@@ -1,0 +1,75 @@
+from pysat.solvers import Kissat404
+from pysat.formula import CNF, IDPool
+
+cnf = CNF()
+idpool = IDPool()
+
+variables = [
+    idpool.id('a'),
+    idpool.id('b'),
+    idpool.id('c'),
+    idpool.id('d'),
+    idpool.id('e'),
+    idpool.id('f'),
+]
+
+for name, var in zip(['a', 'b', 'c', 'd', 'e', 'f'], variables):
+    print(name, ":", var)
+
+def equals(cnf: CNF, variables) -> None:
+
+    first_var = variables[0]
+
+    for next_var in variables[1:]:
+        cnf.append([-first_var, next_var])
+
+    clause = [first_var] + [-var for var in variables[1:]]
+    cnf.append(clause)
+
+equals(cnf, variables)
+
+print("CNF clauses:", cnf.clauses)
+
+with Kissat404(bootstrap_with=cnf) as solver:
+    if solver.solve():
+        model = solver.get_model()
+        print("Satisfiable. Model:", model)
+    else:
+        print("Unsatisfiable.")
+
+
+n = len(variables)
+
+for liczba in range(2**n):
+    wektor_bin = bin(liczba)[2:].zfill(n)
+    wektor = []
+    for bit in wektor_bin:
+        bit = int(bit)
+        wektor.append(bit)
+
+    sprawdzenie = all((wektor)[1:])
+    first_wektor = wektor[0]
+    if sprawdzenie == first_wektor:
+        expected = True
+    else:
+        expected = False
+
+    test_cnf = CNF()
+
+    equals(test_cnf, variables)
+    for var, value in zip(variables, wektor):
+        if value == 1:
+            test_cnf.append([var])
+        else:
+            test_cnf.append([-var])
+
+    with Kissat404(bootstrap_with=test_cnf) as solver:
+        result = solver.solve()
+
+        if result == expected:
+            print('Test', wektor, expected, 'OK')
+        else: 
+            print('Test', wektor, expected, 'ŹLE, COŚ NIE DZIAŁA')
+
+
+    
