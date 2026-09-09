@@ -1,4 +1,4 @@
-from functions import *
+from .functions import *
 
 def add_constant_photon(Builder, state, new_state, k):
     for i in range(8):

@@ -1,10 +1,9 @@
 from pysat.solvers import Kissat404
-from basics import BasicFunctions
-from photon import add_constant_photon, RC, IC
-from photon import shift_rows_photon
-from photon import sbox_photon, Sboxphoton
-from photon import mix_columns_photon
-
+from src.basics import BasicFunctions
+from src.photon import add_constant_photon, RC, IC
+from src.photon import shift_rows_photon
+from src.photon import sbox_photon, Sboxphoton
+from src.photon import mix_columns_photon
 
 def set_cell(builder, cell, value):
 

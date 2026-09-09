@@ -1,5 +1,5 @@
-from basics import *
-from functions import permutation
+from .basics import *
+from .functions import permutation
 from pysat.solvers import Kissat404
 
 builder = BasicFunctions()
