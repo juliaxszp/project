@@ -77,54 +77,57 @@ def test_gift_subcells():
         assert output_value == expected_output
 
 def test_gift_permbits():
-    for source in range(32):
-        builder = BasicFunctions()
+    for row in range(4):
+        for destination in range(32):
+            builder = BasicFunctions()
 
-        state = [
-            [],
-            [],
-            [],
-            []
-        ]
+            state = [
+                [],
+                [],
+                [],
+                []
+            ]
 
-        for row in range(4):
-            for i in range(32):
-                state[row].append(
-                    builder.var(f"state_{row}_{i}")
-                )
+            for state_row in range(4):
+                for i in range(32):
+                    state[state_row].append(
+                        builder.var(
+                            f"state_{state_row}_{i}"
+                        )
+                    )
 
-        output_state = gift_permbits(
-            builder,
-            state,
-            f"test_permbits_{source}"
-        )
+            source = GIFT_PERM[row][destination]
 
-        for row in range(4):
-            for i in range(32):
-                var = state[row][i]
+            for state_row in range(4):
+                for i in range(32):
+                    var = state[state_row][i]
 
-                if i == source:
-                    builder.cnf.append([var])
-                else:
-                    builder.cnf.append([-var])
+                    if state_row == row and i == source:
+                        builder.cnf.append([var])
+                    else:
+                        builder.cnf.append([-var])
 
-        with Kissat404(
-            bootstrap_with=builder.cnf.clauses
-        ) as solver:
+            output_state = gift_permbits(
+                builder,
+                state,
+                f"test_permbits_{row}_{destination}"
+            )
 
-            assert solver.solve()
-            model = solver.get_model()
+            with Kissat404(
+                bootstrap_with=builder.cnf.clauses
+            ) as solver:
 
-        for row in range(4):
-            expected_destination = GIFT_PERM[row][source]
+                assert solver.solve()
+                model = solver.get_model()
 
-            for destination in range(32):
-                var = output_state[row][destination]
+            for state_row in range(4):
+                for i in range(32):
+                    var = output_state[state_row][i]
 
-                if destination == expected_destination:
-                    assert var in model
-                else:
-                    assert -var in model
+                    if state_row == row and i == destination:
+                        assert var in model
+                    else:
+                        assert -var in model
 
 def test_gift_add_round_key():
     builder = BasicFunctions()
@@ -433,9 +436,12 @@ def test_gift_round():
     ]
 
     for row in range(4):
-        for source in range(32):
-            bit = (expected_subcells[row] >> source) & 1
-            destination = GIFT_PERM[row][source]
+        for destination in range(32):
+            source = GIFT_PERM[row][destination]
+
+            bit = (
+                expected_subcells[row] >> source
+            ) & 1
 
             if bit == 1:
                 expected_permbits[row] |= 1 << destination
@@ -496,3 +502,141 @@ def test_gift_round():
                 output_value |= 1 << i
 
         assert output_value == expected_key[word]
+
+def test_gift128():
+    builder = BasicFunctions()
+
+    plaintext = [
+        0x00, 0x01, 0x02, 0x03,
+        0x04, 0x05, 0x06, 0x07,
+        0x08, 0x09, 0x0A, 0x0B,
+        0x0C, 0x0D, 0x0E, 0x0F
+    ]
+
+    key = [
+        0x00, 0x01, 0x02, 0x03,
+        0x04, 0x05, 0x06, 0x07,
+        0x08, 0x09, 0x0A, 0x0B,
+        0x0C, 0x0D, 0x0E, 0x0F
+    ]
+
+    expected_ciphertext = [
+        0xA9, 0x4A, 0xF7, 0xF9,
+        0xBA, 0x18, 0x1D, 0xF9,
+        0xB2, 0xB0, 0x0E, 0xB7,
+        0xDB, 0xFA, 0x93, 0xDF
+    ]
+
+    state_values = []
+
+    for row in range(4):
+        value = 0
+
+        for i in range(4):
+            value = (
+                value << 8
+            ) | plaintext[row * 4 + i]
+
+        state_values.append(value)
+
+    key_values = []
+
+    for word in range(8):
+        value = (
+            key[word * 2] << 8
+        ) | key[word * 2 + 1]
+
+        key_values.append(value)
+
+    state = [
+        [],
+        [],
+        [],
+        []
+    ]
+
+    for row in range(4):
+        for i in range(32):
+            state[row].append(
+                builder.var(f"gift128_state_{row}_{i}")
+            )
+
+    key_state = [
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        []
+    ]
+
+    for word in range(8):
+        for i in range(16):
+            key_state[word].append(
+                builder.var(f"gift128_key_{word}_{i}")
+            )
+
+    for row in range(4):
+        for i in range(32):
+            bit = (state_values[row] >> i) & 1
+            var = state[row][i]
+
+            if bit == 1:
+                builder.cnf.append([var])
+            else:
+                builder.cnf.append([-var])
+
+    for word in range(8):
+        for i in range(16):
+            bit = (key_values[word] >> i) & 1
+            var = key_state[word][i]
+
+            if bit == 1:
+                builder.cnf.append([var])
+            else:
+                builder.cnf.append([-var])
+
+    output_state = gift128(
+        builder,
+        state,
+        key_state,
+        "test_gift128"
+    )
+
+    with Kissat404(
+        bootstrap_with=builder.cnf.clauses
+    ) as solver:
+
+        assert solver.solve()
+        model = solver.get_model()
+
+    ciphertext = []
+
+    for row in range(4):
+        output_value = 0
+
+        for i in range(32):
+            var = output_state[row][i]
+
+            if var in model:
+                output_value |= 1 << i
+
+        ciphertext.append(
+            (output_value >> 24) & 0xFF
+        )
+
+        ciphertext.append(
+            (output_value >> 16) & 0xFF
+        )
+
+        ciphertext.append(
+            (output_value >> 8) & 0xFF
+        )
+
+        ciphertext.append(
+            output_value & 0xFF
+        )
+
+    assert ciphertext == expected_ciphertext

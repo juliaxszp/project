@@ -95,8 +95,8 @@ def gift_permbits(builder, state, prefix="gift_permbits"):
             )
 
     for row in range(4):
-        for source in range(32):
-            destination = GIFT_PERM[row][source]
+        for destination in range(32):
+            source = GIFT_PERM[row][destination]
 
             builder.equals(
                 output_state[row][destination],
@@ -240,3 +240,23 @@ def gift_round(builder, state, key_state, round_constant, prefix="gift_round"):
     )
 
     return output_state, new_key_state
+
+def gift128(
+    builder,
+    state,
+    key_state,
+    prefix="gift128"
+):
+    current_state = state
+    current_key_state = key_state
+
+    for round_index in range(40):
+        current_state, current_key_state = gift_round(
+            builder,
+            current_state,
+            current_key_state,
+            GIFT_ROUND_CONSTANTS[round_index],
+            f"{prefix}_round_{round_index}"
+        )
+
+    return current_state
