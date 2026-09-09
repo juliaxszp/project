@@ -1,4 +1,4 @@
-from .functions import sbox
+from .functions import sbox, xor_const
 
 GIFT_SBOX = [
     0x1, 0xA, 0x4, 0xC,
@@ -32,6 +32,21 @@ GIFT_PERM = [
         1, 5, 9, 13, 17, 21, 25, 29,
         0, 4, 8, 12, 16, 20, 24, 28
     ]
+]
+
+GIFT_ROUND_CONSTANTS = [
+    0x01, 0x03, 0x07, 0x0F,
+    0x1F, 0x3E, 0x3D, 0x3B,
+    0x37, 0x2F, 0x1E, 0x3C,
+    0x39, 0x33, 0x27, 0x0E,
+
+    0x1D, 0x3A, 0x35, 0x2B,
+    0x16, 0x2C, 0x18, 0x30,
+    0x21, 0x02, 0x05, 0x0B,
+    0x17, 0x2E, 0x1C, 0x38,
+
+    0x31, 0x23, 0x06, 0x0D,
+    0x1B, 0x36, 0x2D, 0x1A
 ]
 
 def gift_subcells(builder, state, prefix="gift_subcells"):
@@ -87,5 +102,56 @@ def gift_permbits(builder, state, prefix="gift_permbits"):
                 output_state[row][destination],
                 state[row][source]
             )
+
+    return output_state
+
+def gift_add_round_key(builder, state, u, v, round_constant, prefix="gift_add_round_key"):
+    output_state = [
+        [],
+        [],
+        [],
+        []
+    ]
+
+    for row in range(4):
+        for i in range(32):
+            output_var = builder.var(
+                f"{prefix}_s{row}_{i}"
+            )
+
+            output_state[row].append(output_var)
+
+    for i in range(32):
+        builder.equals(
+            output_state[0][i],
+            state[0][i]
+        )
+
+        builder.xor([
+            state[1][i],
+            v[i],
+            output_state[1][i]
+        ])
+
+        builder.xor([
+            state[2][i],
+            u[i],
+            output_state[2][i]
+        ])
+
+    constant = 0x80000000 | round_constant
+
+    constant_bits = []
+
+    for i in range(32):
+        bit = (constant >> i) & 1
+        constant_bits.append(bit)
+
+    xor_const(
+        builder,
+        state[3],
+        output_state[3],
+        constant_bits
+    )
 
     return output_state
