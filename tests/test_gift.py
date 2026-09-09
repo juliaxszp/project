@@ -316,3 +316,183 @@ def test_gift_key_schedule():
                 output_value |= 1 << i
 
         assert output_value == expected_key_values[word]
+
+def test_gift_round():
+    builder = BasicFunctions()
+
+    state = [
+        [],
+        [],
+        [],
+        []
+    ]
+
+    for row in range(4):
+        for i in range(32):
+            state[row].append(
+                builder.var(f"round_state_{row}_{i}")
+            )
+
+    key_state = [
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        []
+    ]
+
+    for word in range(8):
+        for i in range(16):
+            key_state[word].append(
+                builder.var(f"round_key_w{word}_{i}")
+            )
+
+    state_values = [
+        0x01234567,
+        0x89ABCDEF,
+        0x0F0F0F0F,
+        0xF0F0F0F0
+    ]
+
+    key_values = [
+        0x0001,
+        0x0203,
+        0x0405,
+        0x0607,
+        0x0809,
+        0x0A0B,
+        0x0C0D,
+        0x0E0F
+    ]
+
+    for row in range(4):
+        for i in range(32):
+            bit = (state_values[row] >> i) & 1
+            var = state[row][i]
+
+            if bit == 1:
+                builder.cnf.append([var])
+            else:
+                builder.cnf.append([-var])
+
+    for word in range(8):
+        for i in range(16):
+            bit = (key_values[word] >> i) & 1
+            var = key_state[word][i]
+
+            if bit == 1:
+                builder.cnf.append([var])
+            else:
+                builder.cnf.append([-var])
+
+    output_state, new_key_state = gift_round(
+        builder,
+        state,
+        key_state,
+        GIFT_ROUND_CONSTANTS[0],
+        "test_round"
+    )
+
+    with Kissat404(
+        bootstrap_with=builder.cnf.clauses
+    ) as solver:
+
+        assert solver.solve()
+        model = solver.get_model()
+
+    expected_subcells = [
+        0,
+        0,
+        0,
+        0
+    ]
+
+    for i in range(32):
+        input_value = 0
+
+        for row in range(4):
+            bit = (state_values[row] >> i) & 1
+            input_value |= bit << row
+
+        output_value = GIFT_SBOX[input_value]
+
+        for row in range(4):
+            bit = (output_value >> row) & 1
+
+            if bit == 1:
+                expected_subcells[row] |= 1 << i
+
+    expected_permbits = [
+        0,
+        0,
+        0,
+        0
+    ]
+
+    for row in range(4):
+        for source in range(32):
+            bit = (expected_subcells[row] >> source) & 1
+            destination = GIFT_PERM[row][source]
+
+            if bit == 1:
+                expected_permbits[row] |= 1 << destination
+
+    u_value = (
+        key_values[2] << 16
+    ) | key_values[3]
+
+    v_value = (
+        key_values[6] << 16
+    ) | key_values[7]
+
+    expected_state = [
+        expected_permbits[0],
+        expected_permbits[1] ^ v_value,
+        expected_permbits[2] ^ u_value,
+        expected_permbits[3] ^ (
+            0x80000000 | GIFT_ROUND_CONSTANTS[0]
+        )
+    ]
+
+    for row in range(4):
+        output_value = 0
+
+        for i in range(32):
+            var = output_state[row][i]
+
+            if var in model:
+                output_value |= 1 << i
+
+        assert output_value == expected_state[row]
+
+    def rotate_right_16(value, amount):
+        return (
+            (value >> amount)
+            |
+            (value << (16 - amount))
+        ) & 0xFFFF
+
+    expected_key = [
+        rotate_right_16(key_values[6], 2),
+        rotate_right_16(key_values[7], 12),
+        key_values[0],
+        key_values[1],
+        key_values[2],
+        key_values[3],
+        key_values[4],
+        key_values[5]
+    ]
+
+    for word in range(8):
+        output_value = 0
+
+        for i in range(16):
+            var = new_key_state[word][i]
+
+            if var in model:
+                output_value |= 1 << i
+
+        assert output_value == expected_key[word]

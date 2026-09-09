@@ -156,11 +156,7 @@ def gift_add_round_key(builder, state, u, v, round_constant, prefix="gift_add_ro
 
     return output_state
 
-def gift_key_schedule(
-    builder,
-    key_state,
-    prefix="gift_key_schedule"
-):
+def gift_key_schedule(builder, key_state, prefix="gift_key_schedule"):
     u = key_state[3] + key_state[2]
     v = key_state[7] + key_state[6]
 
@@ -214,3 +210,33 @@ def gift_key_schedule(
             )
 
     return u, v, new_key_state
+
+def gift_round(builder, state, key_state, round_constant, prefix="gift_round"):
+    state_after_subcells = gift_subcells(
+        builder,
+        state,
+        f"{prefix}_subcells"
+    )
+
+    state_after_permbits = gift_permbits(
+        builder,
+        state_after_subcells,
+        f"{prefix}_permbits"
+    )
+
+    u, v, new_key_state = gift_key_schedule(
+        builder,
+        key_state,
+        f"{prefix}_key_schedule"
+    )
+
+    output_state = gift_add_round_key(
+        builder,
+        state_after_permbits,
+        u,
+        v,
+        round_constant,
+        f"{prefix}_add_round_key"
+    )
+
+    return output_state, new_key_state
