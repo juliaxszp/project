@@ -291,3 +291,31 @@ def test_sbox():
             expected_output = sbox_table[input_value]
 
             assert output_value == expected_output
+
+
+
+
+def test_rotate_right():
+    tests = [
+        ([0, 1, 2, 3], 0, [0, 1, 2, 3]),
+        ([0, 1, 2, 3], 1, [3, 0, 1, 2]),
+        ([0, 1, 2, 3], 2, [2, 3, 0, 1]),
+        ([0, 1, 2, 3], 3, [1, 2, 3, 0]),
+        ([0, 1, 2, 3], 4, [0, 1, 2, 3]),
+        ([0, 1, 2, 3], 5, [3, 0, 1, 2]),
+        ([0, 1, 2, 3, 4, 5, 6, 7], 3, [5, 6, 7, 0, 1, 2, 3, 4]),
+
+        ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 5,
+        [7, 8, 9, 10, 11, 0, 1, 2, 3, 4, 5, 6]),
+
+        ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], 7,
+         [14, 15, 16, 17, 18, 19, 20, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]),
+
+         (list(range(64)), 13,
+         list(range(51, 64)) + list(range(51)))
+
+    ]
+
+    for input_values, n, expected in tests:
+        result = rotate_right(input_values, n)
+        assert result == expected

@@ -258,3 +258,16 @@ def gf16_const_mult(
         result.append(product)
 
     return result
+
+#Rotate_Right
+n = int(input('Podaj rotacje "n":'))
+
+def rotate_right(S, n):
+    liczba_bitow = len(S)
+
+    output = []
+
+    for i in range(liczba_bitow):
+        output.append(S[(i - n) % liczba_bitow])
+
+    return output
