@@ -4,6 +4,9 @@ from src.photon import add_constant_photon, RC, IC
 from src.photon import shift_rows_photon
 from src.photon import sbox_photon, Sboxphoton
 from src.photon import mix_columns_photon
+from src.photon import photon_permutation
+from src.photon import create_state
+
 
 def set_cell(builder, cell, value):
 
@@ -243,7 +246,7 @@ def test_mix_columns_photon():
         for j in range(8):
             set_cell(builder, state[i][j], input_values[i][j])
 
-    mix_columns_photon(builder, state, new_state)
+    mix_columns_photon(builder, state, new_state, f"test")
 
 
     solver = Kissat404()
@@ -262,7 +265,63 @@ def test_mix_columns_photon():
             for b in range(4):
                 variable = new_state[i][j][b]
                 expected_bit = (value>>b)&1
-            if expected_bit == 1:
-                assert variable in model
-            else:
-                assert -variable in model
+                if expected_bit == 1:
+                    assert variable in model
+                else:
+                    assert -variable in model
+
+    
+def test_photon_permutation():
+    builder = BasicFunctions()
+
+    state = create_state(builder, "state")
+
+    input_state = [
+    [0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7],
+    [0x8, 0x9, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF],
+    [0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7],
+    [0x8, 0x9, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF],
+    [0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7],
+    [0x8, 0x9, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF],
+    [0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7],
+    [0x8, 0x9, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF],
+]
+
+
+    expected = [
+    [0x9, 0x4, 0xA, 0x0, 0xB, 0xF, 0xD, 0xC],
+    [0x7, 0xD, 0xB, 0x9, 0x5, 0x4, 0xB, 0x3],
+    [0xF, 0x3, 0xA, 0x8, 0x4, 0x6, 0x7, 0x0],
+    [0xE, 0xF, 0x8, 0x8, 0x8, 0x1, 0xD, 0x9],
+    [0x1, 0x2, 0x7, 0x0, 0x6, 0xD, 0xC, 0xA],
+    [0x3, 0x1, 0x6, 0x9, 0x0, 0xE, 0xD, 0x1],
+    [0xB, 0x7, 0x8, 0xD, 0x3, 0xD, 0xC, 0xC],
+    [0xA, 0x5, 0x8, 0xB, 0x3, 0x7, 0x4, 0x0],
+]
+
+    for i in range(8):
+        for j in range(8):
+            set_cell(builder, state[i][j], input_state[i][j])
+
+    result = photon_permutation(builder, state)
+
+    solver = Kissat404()
+        
+    for clause in builder.cnf.clauses:
+            solver.add_clause(clause)
+        
+    assert solver.solve()
+    model = solver.get_model()  
+    
+    for i in range(8):
+        for j in range(8):
+    
+            value = expected[i][j]
+    
+            for b in range(4):
+                variable = result[i][j][b]
+                expected_bit = (value>>b)&1
+                if expected_bit == 1:
+                    assert variable in model
+                else:
+                    assert -variable in model
