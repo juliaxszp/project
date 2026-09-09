@@ -27,12 +27,13 @@ def split_blocks(AD, block_size = 128):
 #teraz padding 10*
 def padozs(blocks, block_size = 128):
     block = blocks[-1]
-    n = len(block)
+    padded_block = block.copy()   #dodaje zeby nie psuc dlugosci ctx
+    n = len(padded_block)
     if n < block_size:
-        block.append(1)
+        padded_block.append(1)
         for i in range(n+1, block_size):
-            block.append(0)
-    return blocks
+            padded_block.append(0)
+    return padded_block
 
 #funkcja do podzialu stanow 
 
@@ -80,7 +81,7 @@ def photon256first(Builder, nonce, key, A):
     permuted_state = photon_permutation(Builder, state)
     Y, Z = split_state(permuted_state)
     blocks = split_blocks(A, 128)
-    blocks = padozs(blocks, 128)
+    blocks[-1] = padozs(blocks, 128)
     W = xor_block(Builder, Y, blocks[0], "AD_0")
     new_state = unsplit_state(W + Z)
     return new_state, blocks
@@ -104,3 +105,32 @@ def shuffle(S):
     shuffled = S2 + rotated_S1
 
     return shuffled
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#dodajemy do akcji plaintext
+
+def photon256withPTXfirst(Builder, state, ptx):
+    permuted_state = photon_permutation(Builder, state)
+    Y, Z = split_state(permuted_state)
+    S = shuffle(Y)
+    message_blocks = split_blocks(ptx, 128)
+    M1 = message_blocks[0]
+    C1 = xor_block(Builder, S, M1, "C_0")
+    padded_M1 = padozs(M1, 128) #robie padding dopiero po liczeniu C1, bo ctx ma miec dlugosc ptx
+    W = xor_block(Builder, Y, padded_M1, "Wptx_0")
+    new_state = unsplit_state(W + Z)
+    return new_state, C1, message_blocks
+
+def photon256withPTXnext(Builder, state, message_blocks, C1):
+    ciphertext_blocks = []
+    ciphertext_blocks.append(C1)
+    for i in range(1, len(message_blocks)):
+        permuted_state = photon_permutation(Builder, state)
+        Y, Z = split_state(permuted_state)
+        S = shuffle(Y)
+        Ci = xor_block(Builder, S, message_blocks[i], f"C{i}")
+        ciphertext_blocks.append(Ci)
+        padded_ms = padozs(message_blocks[i], 128)
+        W = xor_block(Builder, Y, padded_ms, f"Wptx_{i}")
+        state = unsplit_state(W + Z)
+    return state, ciphertext_blocks
