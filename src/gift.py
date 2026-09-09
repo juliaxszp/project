@@ -155,3 +155,62 @@ def gift_add_round_key(builder, state, u, v, round_constant, prefix="gift_add_ro
     )
 
     return output_state
+
+def gift_key_schedule(
+    builder,
+    key_state,
+    prefix="gift_key_schedule"
+):
+    u = key_state[3] + key_state[2]
+    v = key_state[7] + key_state[6]
+
+    new_key_state = [
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        []
+    ]
+
+    rotated_w6 = []
+    rotated_w7 = []
+
+    for i in range(16):
+        rotated_w6.append(
+            key_state[6][(i + 2) % 16]
+        )
+
+        rotated_w7.append(
+            key_state[7][(i + 12) % 16]
+        )
+
+    source_words = [
+        rotated_w6,
+        rotated_w7,
+        key_state[0],
+        key_state[1],
+        key_state[2],
+        key_state[3],
+        key_state[4],
+        key_state[5]
+    ]
+
+    for word in range(8):
+        for i in range(16):
+            output_var = builder.var(
+                f"{prefix}_w{word}_{i}"
+            )
+
+            builder.equals(
+                output_var,
+                source_words[word][i]
+            )
+
+            new_key_state[word].append(
+                output_var
+            )
+
+    return u, v, new_key_state

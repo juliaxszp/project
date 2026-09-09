@@ -225,3 +225,94 @@ def test_gift_add_round_key():
                 output_value |= 1 << i
 
         assert output_value == expected_values[row]
+
+def test_gift_key_schedule():
+    builder = BasicFunctions()
+
+    key_state = [
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        []
+    ]
+
+    for word in range(8):
+        for i in range(16):
+            key_state[word].append(
+                builder.var(f"key_w{word}_{i}")
+            )
+
+    key_values = [
+        0x0001,
+        0x0203,
+        0x0405,
+        0x0607,
+        0x0809,
+        0x0A0B,
+        0x0C0D,
+        0x0E0F
+    ]
+
+    for word in range(8):
+        for i in range(16):
+            bit = (key_values[word] >> i) & 1
+            var = key_state[word][i]
+
+            if bit == 1:
+                builder.cnf.append([var])
+            else:
+                builder.cnf.append([-var])
+
+    u, v, new_key_state = gift_key_schedule(
+        builder,
+        key_state,
+        "test_key_schedule"
+    )
+
+    with Kissat404(
+        bootstrap_with=builder.cnf.clauses
+    ) as solver:
+
+        assert solver.solve()
+        model = solver.get_model()
+
+    u_value = 0
+
+    for i in range(32):
+        if u[i] in model:
+            u_value |= 1 << i
+
+    v_value = 0
+
+    for i in range(32):
+        if v[i] in model:
+            v_value |= 1 << i
+
+    assert u_value == 0x04050607
+    assert v_value == 0x0C0D0E0F
+
+    expected_key_values = [
+        0x4303,
+        0xE0F0,
+        0x0001,
+        0x0203,
+        0x0405,
+        0x0607,
+        0x0809,
+        0x0A0B
+    ]
+
+    for word in range(8):
+        output_value = 0
+
+        for i in range(16):
+            var = new_key_state[word][i]
+
+            if var in model:
+                output_value |= 1 << i
+
+        assert output_value == expected_key_values[word]
