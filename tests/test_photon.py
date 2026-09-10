@@ -365,4 +365,6 @@ def set_expected_hex(Builder, output, variables):
         else:
             Builder.cnf.append([variables[i]])
 
-def test_photon_beetle()
+def test_photon_beetle():
+    
+    
