@@ -31,3 +31,98 @@ def cofb_pad(builder, data_vars, block_size=128, prefix="cofb_pad"):
         blocks.append(block)
 
     return blocks
+
+def cofb_g(builder, y, prefix="cofb_g"):
+    if len(y) != 128:
+        raise ValueError("COFB G expects 128 bits")
+
+    y1 = y[:64]
+    y2 = y[64:]
+
+    rotated_y1 = y1[1:] + y1[:1]
+
+    source_bits = y2 + rotated_y1
+
+    output = []
+
+    for i in range(128):
+        output_var = builder.var(
+            f"{prefix}_{i}"
+        )
+
+        builder.equals(
+            output_var,
+            source_bits[i]
+        )
+
+        output.append(output_var)
+
+    return output
+
+def cofb_double(builder, l, prefix="cofb_double"):
+    if len(l) != 64:
+        raise ValueError("COFB double expects 64 bits")
+
+    carry = l[0]
+
+    zero_var = builder.var(
+        f"{prefix}_zero"
+    )
+
+    builder.cnf.append([-zero_var])
+
+    shifted = l[1:] + [zero_var]
+
+    output = []
+
+    reduction_positions = {
+        59,
+        60,
+        62,
+        63
+    }
+
+    for i in range(64):
+        output_var = builder.var(
+            f"{prefix}_{i}"
+        )
+
+        if i in reduction_positions:
+            builder.xor([
+                shifted[i],
+                carry,
+                output_var
+            ])
+        else:
+            builder.equals(
+                output_var,
+                shifted[i]
+            )
+
+        output.append(output_var)
+
+    return output
+
+def cofb_triple(builder, l, prefix="cofb_triple"):
+    doubled = cofb_double(
+        builder,
+        l,
+        f"{prefix}_double"
+    )
+
+    output = []
+
+    for i in range(64):
+        output_var = builder.var(
+            f"{prefix}_{i}"
+        )
+
+        builder.xor([
+            l[i],
+            doubled[i],
+            output_var
+        ])
+
+        output.append(output_var)
+
+    return output
