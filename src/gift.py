@@ -241,12 +241,7 @@ def gift_round(builder, state, key_state, round_constant, prefix="gift_round"):
 
     return output_state, new_key_state
 
-def gift128(
-    builder,
-    state,
-    key_state,
-    prefix="gift128"
-):
+def gift128(builder, state, key_state, prefix="gift128"):
     current_state = state
     current_key_state = key_state
 
