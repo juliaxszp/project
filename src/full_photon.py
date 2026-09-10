@@ -25,8 +25,7 @@ def split_blocks(AD, block_size = 128):
     return blocks
 
 #teraz padding 10*
-def padozs(blocks, block_size = 128):
-    block = blocks[-1]
+def padozs(block, block_size = 128):
     padded_block = block.copy()   #dodaje zeby nie psuc dlugosci ctx
     n = len(padded_block)
     if n < block_size:
@@ -81,7 +80,7 @@ def photon256first(Builder, nonce, key, A):
     permuted_state = photon_permutation(Builder, state)
     Y, Z = split_state(permuted_state)
     blocks = split_blocks(A, 128)
-    blocks[-1] = padozs(blocks, 128)
+    blocks[-1] = padozs(blocks[-1], 128)
     W = xor_block(Builder, Y, blocks[0], "AD_0")
     new_state = unsplit_state(W + Z)
     return new_state, blocks
@@ -134,3 +133,32 @@ def photon256withPTXnext(Builder, state, message_blocks, C1):
         W = xor_block(Builder, Y, padded_ms, f"Wptx_{i}")
         state = unsplit_state(W + Z)
     return state, ciphertext_blocks
+
+def get_c(A, ptx, block_size = 128):
+        A_full = len(A) % block_size == 0
+        ptx_full = len(ptx) % block_size == 0
+        A_exists = len(A)>0
+        ptx_exists = len(ptx) > 0
+
+        match(ptx_exists, A_full):
+            case(True, True):
+                c0 = 1
+            case(True, False):
+                c0 = 2
+            case(False, True):
+                c0 = 3
+            case(False, False):
+                c0 = 4
+
+        match(A_exists, ptx_full):
+            case(True, True):
+                c1 = 1
+            case(True, False):
+                c1 = 2
+            case(False, True):
+                c1 = 5
+            case(False, False):
+                c1 = 6
+        return c0, c1
+
+def domain_separation()
