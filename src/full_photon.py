@@ -25,13 +25,17 @@ def split_blocks(AD, block_size = 128):
     return blocks
 
 #teraz padding 10*
-def padozs(block, block_size = 128):
+def padozs(Builder, block, prefix, block_size = 128):
     padded_block = block.copy()   #dodaje zeby nie psuc dlugosci ctx
     n = len(padded_block)
     if n < block_size:
-        padded_block.append(1)
+        one = Builder.var(f"{prefix}_one")
+        Builder.cnf.append([one])
+        padded_block.append(one)
         for i in range(n+1, block_size):
-            padded_block.append(0)
+            zero = Builder.var(f"{prefix}_zero_{i}")
+            Builder.cnf.append([-zero])
+            padded_block.append(zero)
     return padded_block
 
 #funkcja do podzialu stanow 
@@ -80,14 +84,14 @@ def photon256first(Builder, nonce, key, A):
     permuted_state = photon_permutation(Builder, state, "ADfirst")
     Y, Z = split_state(permuted_state)
     blocks = split_blocks(A, 128)
-    blocks[-1] = padozs(blocks[-1], 128)
+    blocks[-1] = padozs(Builder, blocks[-1], "ADfirst", 128)
     W = xor_block(Builder, Y, blocks[0], "AD_0")
     new_state = unsplit_state(W + Z)
     return new_state, blocks
 
 def photon256next(Builder, state, blocks, prefix):
     for i in range(1, len(blocks)):
-        permuted_state = photon_permutation(Builder, state, f"{prefix}_ {i}") 
+        permuted_state = photon_permutation(Builder, state, f"{prefix}_{i}") 
         Y, Z = split_state(permuted_state)
         W = xor_block(Builder, Y, blocks[i], f"{prefix}_{i}")
         state = unsplit_state(W + Z)
@@ -115,7 +119,7 @@ def photon256withPTXfirst(Builder, state, ptx):
     message_blocks = split_blocks(ptx, 128)
     M1 = message_blocks[0]
     C1 = xor_block(Builder, S, M1, "C_0")
-    padded_M1 = padozs(M1, 128) #robie padding dopiero po liczeniu C1, bo ctx ma miec dlugosc ptx
+    padded_M1 = padozs(Builder, M1, "ptxfirst", 128) #robie padding dopiero po liczeniu C1, bo ctx ma miec dlugosc ptx
     W = xor_block(Builder, Y, padded_M1, "Wptx_0")
     new_state = unsplit_state(W + Z)
     return new_state, C1, message_blocks
@@ -129,7 +133,7 @@ def photon256withPTXnext(Builder, state, message_blocks, C1):
         S = shuffle(Y)
         Ci = xor_block(Builder, S, message_blocks[i], f"C{i}")
         ciphertext_blocks.append(Ci)
-        padded_ms = padozs(message_blocks[i], 128)
+        padded_ms = padozs(Builder, message_blocks[i], f"ptxnext_{i}", 128)
         W = xor_block(Builder, Y, padded_ms, f"Wptx_{i}")
         state = unsplit_state(W + Z)
     return state, ciphertext_blocks

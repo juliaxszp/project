@@ -6,7 +6,7 @@ from src.photon import sbox_photon, Sboxphoton
 from src.photon import mix_columns_photon
 from src.photon import photon_permutation
 from src.photon import create_state
-
+from src.full_photon import init_state, split_state
 
 def set_cell(builder, cell, value):
 
@@ -325,3 +325,44 @@ def test_photon_permutation():
                     assert variable in model
                 else:
                     assert -variable in model
+
+def test_init_state():
+    nonce = [0]*128
+    key = [0]*128
+    last_byte = last_byte = [(0xA0 >> b) & 1 for b in range(8)]
+    key[-8:] = last_byte
+    state = init_state(nonce, key)
+    Y, Z = split_state(state)
+    bits = Y+Z
+    assert bits[248:256] == [0, 0, 0, 0, 0, 1, 0, 1]
+
+def hex_to_sat(Builder, input, prefix):
+    input_bits = [] 
+    for char in input:   
+        value = int(char, 16)
+        bits = [(value >> b) & 1 for b in range(4)]
+        input_bits.extend(bits)
+    sat_bits = []
+    for i in range(len(input_bits)):
+        v = Builder.var(f"{prefix}_{i}")
+        if input_bits[i] == 0:
+            Builder.cnf.append([-v])
+        else:
+            Builder.cnf.append([v])
+        sat_bits.append(v)
+    return sat_bits
+
+def set_expected_hex(Builder, output, variables):
+    expected_bits = []
+    for char in output:
+        value = int(char, 16)
+        bits = [(value >> b) & 1 for b in range(4)]
+        expected_bits.extend(bits)
+    assert len(variables) == len(expected_bits)
+    for i in range(len(variables)):
+        if expected_bits[i] == 0:
+            Builder.cnf.append([-variables[i]])
+        else:
+            Builder.cnf.append([variables[i]])
+
+def test_photon_beetle()
