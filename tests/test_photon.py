@@ -303,7 +303,7 @@ def test_photon_permutation():
         for j in range(8):
             set_cell(builder, state[i][j], input_state[i][j])
 
-    result = photon_permutation(builder, state)
+    result = photon_permutation(builder, state, "test")
 
     solver = Kissat404()
         

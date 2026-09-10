@@ -90,19 +90,19 @@ def create_state(Builder, name):
         state.append(row)
     return state
 
-def photon_permutation(Builder, state):
+def photon_permutation(Builder, state, prefix):
     current_state = state
 
     for round in range(12):
-        state_after_constant = create_state(Builder, f"round_{round}_constant")
-        state_after_sbox = create_state(Builder,  f"round_{round}_sbox")
-        state_after_shiftrows = create_state(Builder,  f"round_{round}_shiftrows")
-        state_after_mixcolumns = create_state(Builder,  f"round_{round}_mixcolumns")
+        state_after_constant = create_state(Builder, f"{prefix}_round_{round}_constant")
+        state_after_sbox = create_state(Builder,  f"{prefix}_round_{round}_sbox")
+        state_after_shiftrows = create_state(Builder,  f"{prefix}_round_{round}_shiftrows")
+        state_after_mixcolumns = create_state(Builder,  f"{prefix}_round_{round}_mixcolumns")
 
         add_constant_photon(Builder, current_state, state_after_constant, round)
         sbox_photon(Builder, state_after_constant, state_after_sbox)
         shift_rows_photon(Builder, state_after_sbox, state_after_shiftrows)
-        mix_columns_photon(Builder, state_after_shiftrows, state_after_mixcolumns, f"round_{round}")
+        mix_columns_photon(Builder, state_after_shiftrows, state_after_mixcolumns, f"{prefix}_round_{round}")
 
         current_state = state_after_mixcolumns
 

@@ -77,7 +77,7 @@ def unsplit_state(bits):
 #cosie dzieje w szyfrze przed plaintextem
 def photon256first(Builder, nonce, key, A):
     state = init_state(nonce, key)
-    permuted_state = photon_permutation(Builder, state)
+    permuted_state = photon_permutation(Builder, state, "ADfirst")
     Y, Z = split_state(permuted_state)
     blocks = split_blocks(A, 128)
     blocks[-1] = padozs(blocks[-1], 128)
@@ -87,7 +87,7 @@ def photon256first(Builder, nonce, key, A):
 
 def photon256next(Builder, state, blocks, prefix):
     for i in range(1, len(blocks)):
-        permuted_state = photon_permutation(Builder, state)
+        permuted_state = photon_permutation(Builder, state, f"{prefix}_ {i}") 
         Y, Z = split_state(permuted_state)
         W = xor_block(Builder, Y, blocks[i], f"{prefix}_{i}")
         state = unsplit_state(W + Z)
@@ -109,7 +109,7 @@ def shuffle(S):
 #dodajemy do akcji plaintext
 
 def photon256withPTXfirst(Builder, state, ptx):
-    permuted_state = photon_permutation(Builder, state)
+    permuted_state = photon_permutation(Builder, state, "ptxfirst")
     Y, Z = split_state(permuted_state)
     S = shuffle(Y)
     message_blocks = split_blocks(ptx, 128)
@@ -124,7 +124,7 @@ def photon256withPTXnext(Builder, state, message_blocks, C1):
     ciphertext_blocks = []
     ciphertext_blocks.append(C1)
     for i in range(1, len(message_blocks)):
-        permuted_state = photon_permutation(Builder, state)
+        permuted_state = photon_permutation(Builder, state,f"PTX_{i}")
         Y, Z = split_state(permuted_state)
         S = shuffle(Y)
         Ci = xor_block(Builder, S, message_blocks[i], f"C{i}")
@@ -161,4 +161,72 @@ def get_c(A, ptx, block_size = 128):
                 c1 = 6
         return c0, c1
 
-def domain_separation()
+def domain_constant(Builder, state, c, prefix):
+    Y, Z = split_state(state)
+    bits = Y+Z
+    new_bits = bits.copy()
+    c_bits = [(c >> b) & 1 for b in range(3)]
+    for b in range(3):
+        x = Builder.var(f"{prefix}_domain_{b}")
+        if c_bits[b] == 0:
+            Builder.equals(x, bits[253+b])
+        else:
+            Builder.equals_not(x, bits[253 + b])
+        new_bits[253+b] = x
+    return unsplit_state(new_bits)
+
+def generate_tag(Builder, state):
+    permuted_state = photon_permutation(Builder, state, "tag")
+    Y, Z = split_state(permuted_state)
+    tag = Y
+    return tag
+
+def photon_beetle_empty(Builder, nonce, key):
+    state = init_state(nonce, key)
+    state = domain_constant(Builder, state, 1, "empty")
+    tag = generate_tag(Builder, state)
+    ciphertext = []
+    return ciphertext, tag
+
+def photon_beetle_ad_only(Builder, nonce, key, A):
+    c0, c1 = get_c(A, [])
+    state, blocks = photon256first(Builder, nonce, key, A)
+    state = photon256next(Builder, state, blocks, "ADonly")
+    state = domain_constant(Builder, state, c0, "ADonly")
+    tag = generate_tag(Builder, state)
+    ciphertext = []
+    return ciphertext, tag
+
+def photon_beetle(Builder, nonce, key, A, ptx):
+    if A == [] and ptx == []:
+        ciphertext, tag = photon_beetle_empty(Builder, nonce, key)
+        return ciphertext, tag
+    elif A != [] and ptx == []:
+        ciphertext, tag = photon_beetle_ad_only(Builder, nonce, key, A)
+        return ciphertext, tag
+    elif A == [] and ptx != []:
+        state = init_state(nonce, key)
+        c0, c1 = get_c(A, ptx)
+        state, C1, message_blocks = photon256withPTXfirst(Builder, state, ptx)
+        ciphertext = []
+        state, ciphertext_blocks = photon256withPTXnext(Builder, state, message_blocks, C1)
+        for block in ciphertext_blocks:
+            ciphertext.extend(block)
+        
+        state = domain_constant(Builder, state, c1, "PTXonly")
+        tag = generate_tag(Builder, state)
+        return ciphertext, tag
+    else:
+        state, blocks = photon256first(Builder, nonce, key, A)
+        c0, c1 = get_c(A, ptx)
+        state = photon256next(Builder, state, blocks, "ADAndPTX")
+        state = domain_constant(Builder, state, c0, "AD")
+        state, C1, message_blocks= photon256withPTXfirst(Builder, state, ptx)
+        ciphertext = []
+        state, ciphertext_blocks = photon256withPTXnext(Builder, state, message_blocks, C1)
+        for block in ciphertext_blocks:
+            ciphertext.extend(block)
+        state = domain_constant(Builder, state, c1, "PTX")
+        tag = generate_tag(Builder, state)
+        return ciphertext, tag
+
