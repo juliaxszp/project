@@ -244,3 +244,101 @@ def test_cofb_triple():
                 output_value |= 1
 
         assert output_value == expected_value
+
+def test_cofb_gift_encrypt():
+    builder = BasicFunctions()
+
+    plaintext_bytes = [
+        0x00, 0x01, 0x02, 0x03,
+        0x04, 0x05, 0x06, 0x07,
+        0x08, 0x09, 0x0A, 0x0B,
+        0x0C, 0x0D, 0x0E, 0x0F
+    ]
+
+    key_bytes = [
+        0x00, 0x01, 0x02, 0x03,
+        0x04, 0x05, 0x06, 0x07,
+        0x08, 0x09, 0x0A, 0x0B,
+        0x0C, 0x0D, 0x0E, 0x0F
+    ]
+
+    expected_ciphertext = [
+        0xA9, 0x4A, 0xF7, 0xF9,
+        0xBA, 0x18, 0x1D, 0xF9,
+        0xB2, 0xB0, 0x0E, 0xB7,
+        0xDB, 0xFA, 0x93, 0xDF
+    ]
+
+    plaintext = []
+    key = []
+
+    for byte_index, byte in enumerate(
+        plaintext_bytes
+    ):
+        for bit_index in range(7, -1, -1):
+            var = builder.var(
+                f"plaintext_{byte_index}_{bit_index}"
+            )
+
+            plaintext.append(var)
+
+            bit = (
+                byte >> bit_index
+            ) & 1
+
+            if bit == 1:
+                builder.cnf.append([var])
+            else:
+                builder.cnf.append([-var])
+
+    for byte_index, byte in enumerate(
+        key_bytes
+    ):
+        for bit_index in range(7, -1, -1):
+            var = builder.var(
+                f"key_{byte_index}_{bit_index}"
+            )
+
+            key.append(var)
+
+            bit = (
+                byte >> bit_index
+            ) & 1
+
+            if bit == 1:
+                builder.cnf.append([var])
+            else:
+                builder.cnf.append([-var])
+
+    output = cofb_gift_encrypt(
+        builder,
+        plaintext,
+        key,
+        "test_cofb_gift"
+    )
+
+    with Kissat404(
+        bootstrap_with=builder.cnf.clauses
+    ) as solver:
+
+        assert solver.solve()
+        model = solver.get_model()
+
+    ciphertext = []
+
+    for byte_index in range(16):
+        value = 0
+
+        for bit_index in range(8):
+            value <<= 1
+
+            var = output[
+                byte_index * 8 + bit_index
+            ]
+
+            if var in model:
+                value |= 1
+
+        ciphertext.append(value)
+
+    assert ciphertext == expected_ciphertext

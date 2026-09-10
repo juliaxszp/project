@@ -1,3 +1,5 @@
+from .gift import gift128
+
 def cofb_pad(builder, data_vars, block_size=128, prefix="cofb_pad"):
     padded = list(data_vars)
 
@@ -126,3 +128,85 @@ def cofb_triple(builder, l, prefix="cofb_triple"):
         output.append(output_var)
 
     return output
+
+def cofb_block_to_gift_state(block):
+    if len(block) != 128:
+        raise ValueError(
+            "GIFT block must contain 128 bits"
+        )
+
+    state = []
+
+    for row in range(4):
+        start = row * 32
+        end = start + 32
+
+        state_row = block[start:end]
+
+        state.append(
+            list(reversed(state_row))
+        )
+
+    return state
+
+def cofb_key_to_gift_key_state(key):
+    if len(key) != 128:
+        raise ValueError(
+            "GIFT key must contain 128 bits"
+        )
+
+    key_state = []
+
+    for word in range(8):
+        start = word * 16
+        end = start + 16
+
+        key_word = key[start:end]
+
+        key_state.append(
+            list(reversed(key_word))
+        )
+
+    return key_state
+
+def gift_state_to_cofb_block(state):
+    if len(state) != 4:
+        raise ValueError(
+            "GIFT state must contain 4 rows"
+        )
+
+    block = []
+
+    for row in range(4):
+        if len(state[row]) != 32:
+            raise ValueError(
+                "Each GIFT state row must contain 32 bits"
+            )
+
+        block.extend(
+            reversed(state[row])
+        )
+
+    return block
+
+def cofb_gift_encrypt(builder, block, key, prefix="cofb_gift_encrypt"):
+    state = cofb_block_to_gift_state(
+        block
+    )
+
+    key_state = cofb_key_to_gift_key_state(
+        key
+    )
+
+    output_state = gift128(
+        builder,
+        state,
+        key_state,
+        prefix
+    )
+
+    output_block = gift_state_to_cofb_block(
+        output_state
+    )
+
+    return output_block
