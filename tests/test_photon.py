@@ -338,14 +338,10 @@ def test_init_state():
 
 def hex_to_sat(Builder, input, prefix):
     input_bits = [] 
-    for i in range(0, len(input), 2):
-        byte = int(input[i:i+2], 16)
-        low_nibble = byte & 0xF
-        high_nibble = byte >> 4
-        low_bits = [(low_nibble >> b) & 1 for b in range(4)]
-        high_bits = [(high_nibble >> b) & 1 for b in range(4)]
-        input_bits.extend(low_bits)
-        input_bits.extend(high_bits)
+    for char in input:   
+        value = int(char, 16)
+        bits = [(value >> b) & 1 for b in range(4)]
+        input_bits.extend(bits)
     sat_bits = []
     for i in range(len(input_bits)):
         v = Builder.var(f"{prefix}_{i}")
@@ -358,14 +354,10 @@ def hex_to_sat(Builder, input, prefix):
 
 def set_expected_hex(Builder, variables, hex_string):
     expected_bits = []
-    for i in range(0, len(hex_string), 2):
-        byte = int(hex_string[i:i+2], 16)
-        low_nibble = byte & 0xF
-        high_nibble = byte >> 4
-        low_bits = [(low_nibble >> b) & 1 for b in range(4)]
-        high_bits = [(high_nibble >> b) & 1 for b in range(4)]
-        expected_bits.extend(low_bits)
-        expected_bits.extend(high_bits)
+    for char in hex_string:
+        value = int(char, 16)
+        bits = [(value >> b) & 1 for b in range(4)]
+        expected_bits.extend(bits)
     assert len(variables) == len(expected_bits)
     for i in range(len(variables)):
         if expected_bits[i] == 0:
