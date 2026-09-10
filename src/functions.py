@@ -113,7 +113,7 @@ def rho_east_sat(tablica):
     for i in range(4):
         tablica[1][i] = rotl(tablica[1][i], 1)
         #pł 2:
-    lista = [tablica[3][i] for i in range(4)]
+    lista = [tablica[2][i] for i in range(4)]
     lista = rotl(lista, 2)
     for j in range(4):
         tablica[1][j] = lista[j]
@@ -131,7 +131,7 @@ def vector_xor(builder, vectors):
 
 def vector_and(builder, vectors):
     output = []
-    for i in range(len(vector[0])):
+    for i in range(len(vectors[0])):
         output.append(builder.equal_andn([vector[i] for vector in vectors]))
     return output
 
@@ -213,7 +213,7 @@ def rho_east(tablica):
     for i in range(4):
         tablica[1][i] = rotl(tablica[1][i], 1)
         #pł 2:
-    lista = [tablica[3][i] for i in range(4)]
+    lista = [tablica[2][i] for i in range(4)]
     lista = rotl(lista, 2)
     for j in range(4):
         tablica[1][j] = lista[j]
