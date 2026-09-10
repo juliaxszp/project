@@ -260,7 +260,7 @@ def gf16_const_mult(
     return result
 
 #Rotate_Right
-n = int(input('Podaj rotacje "n":'))
+#n = int(input('Podaj rotacje "n":'))
 
 def rotate_right(S, n):
     liczba_bitow = len(S)
