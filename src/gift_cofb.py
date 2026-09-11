@@ -300,11 +300,7 @@ def cofb_xor_blocks(builder, blocks, prefix="cofb_xor_blocks"):
 
     return output
 
-def cofb_triple_squared(
-    builder,
-    l,
-    prefix="cofb_triple_squared"
-):
+def cofb_triple_squared(builder, l, prefix="cofb_triple_squared"):
     first_triple = cofb_triple(
         builder,
         l,
@@ -319,16 +315,7 @@ def cofb_triple_squared(
 
     return second_triple
 
-
-def cofb_process_associated_data(
-    builder,
-    associated_data,
-    y,
-    l,
-    key,
-    message_is_empty,
-    prefix="cofb_ad"
-):
+def cofb_process_associated_data(builder, associated_data, y, l, key, message_is_empty, prefix="cofb_ad"):
     ad_blocks = cofb_pad(
         builder,
         associated_data,

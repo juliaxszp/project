@@ -491,3 +491,66 @@ def test_cofb_triple_squared():
             output_value |= 1
 
     assert output_value == expected_value
+
+def test_cofb_process_associated_data():
+    builder = BasicFunctions()
+
+    associated_data = []
+    y = []
+    l = []
+    key = []
+
+    for i in range(128):
+        ad_var = builder.var(
+            f"process_ad_{i}"
+        )
+
+        y_var = builder.var(
+            f"process_y_{i}"
+        )
+
+        key_var = builder.var(
+            f"process_key_{i}"
+        )
+
+        associated_data.append(ad_var)
+        y.append(y_var)
+        key.append(key_var)
+
+        builder.cnf.append([-ad_var])
+        builder.cnf.append([-y_var])
+        builder.cnf.append([-key_var])
+
+    for i in range(64):
+        l_var = builder.var(
+            f"process_l_{i}"
+        )
+
+        l.append(l_var)
+
+        builder.cnf.append([-l_var])
+
+    output_y, output_l = (
+        cofb_process_associated_data(
+            builder,
+            associated_data,
+            y,
+            l,
+            key,
+            message_is_empty=False,
+            prefix="test_process_ad"
+        )
+    )
+
+    assert len(output_y) == 128
+    assert len(output_l) == 64
+
+    with Kissat404(
+        bootstrap_with=builder.cnf.clauses
+    ) as solver:
+
+        assert solver.solve()
+        model = solver.get_model()
+
+    for var in output_l:
+        assert -var in model
