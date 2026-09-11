@@ -104,7 +104,7 @@ def shuffle(S):
     S1 = S[:half]
     S2 = S[half:]
 
-    rotated_S1 = [S1[-1]] + S1[:-1]
+    rotated_S1 = S1[1:] + [S1[0]]
     shuffled = S2 + rotated_S1
 
     return shuffled
