@@ -388,3 +388,95 @@ def test_photon_beetle_kat1():
     for clause in builder.cnf.clauses:
         solver.add_clause(clause)
     assert solver.solve()
+
+def test_photon_beetle_kat2():
+    builder = BasicFunctions()
+    key = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F", "key")
+    nonce = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F", "nonce")
+    A = hex_to_sat(builder, "00", "AD")
+    ptx = []
+    ciphertext, tag = photon_beetle(builder, nonce, key, A, ptx)
+    assert ciphertext == []
+    set_expected_hex(builder, tag, "E840449949081C5378E01EBA6046DBE8")
+    solver = Kissat404()
+    for clause in builder.cnf.clauses:
+        solver.add_clause(clause)
+    assert solver.solve()
+
+def test_photon_beetle_kat3():
+    builder = BasicFunctions()
+    key = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F", "key")
+    nonce = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F", "nonce")
+    A = hex_to_sat(builder, "0001", "AD")
+    ptx = []
+    ciphertext, tag = photon_beetle(builder, nonce, key, A, ptx)
+    assert ciphertext == []
+    set_expected_hex(builder, tag, "9535FE42756917B946D74128639AA8A7")
+    solver = Kissat404()
+    for clause in builder.cnf.clauses:
+        solver.add_clause(clause)
+    assert solver.solve()
+    
+def test_photon_beetle_kat7():
+    builder = BasicFunctions()
+    key = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F", "key")
+    nonce = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F", "nonce")
+    A = hex_to_sat(builder, "000102030405", "AD")
+    ptx = []
+    ciphertext, tag = photon_beetle(builder, nonce, key, A, ptx)
+    assert ciphertext == []
+    set_expected_hex(builder, tag, "DB57E61B4AFB2C2590966CEB67848F57")
+    solver = Kissat404()
+    for clause in builder.cnf.clauses:
+        solver.add_clause(clause)
+    assert solver.solve()
+
+def test_photon_beetle_kat22():
+    builder = BasicFunctions()
+    key = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F", "key")
+    nonce = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F", "nonce")
+    A = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F1011121314", "AD")
+    ptx = []
+    ciphertext, tag = photon_beetle(builder, nonce, key, A, ptx)
+    assert ciphertext == []
+    set_expected_hex(builder, tag, "4643F0313C40F4F67DBE416F5768CD32")
+    solver = Kissat404()
+    for clause in builder.cnf.clauses:
+        solver.add_clause(clause)
+    assert solver.solve()
+
+def test_photon_beetle_kat50():
+    builder = BasicFunctions()
+    key = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F", "key")
+    nonce = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F", "nonce")
+    A = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F", "AD")
+    ptx = hex_to_sat(builder, "00", "ptx")
+    ciphertext, tag = photon_beetle(builder, nonce, key, A, ptx)
+    split = len(ptx) // 4
+    expected = "87ACAF9C058BB0EF9FD10C92DFA4D140B5"
+    expected_ciphertext = expected[:split]
+    expected_tag = expected[split:]
+    set_expected_hex(builder, ciphertext, expected_ciphertext)
+    set_expected_hex(builder, tag, expected_tag)
+    solver = Kissat404()
+    for clause in builder.cnf.clauses:
+        solver.add_clause(clause)
+    assert solver.solve()
+
+def test_photon_beetle_kat454():
+    builder = BasicFunctions()
+    key = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F", "key")
+    nonce = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F", "nonce")
+    A = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F1011121314151617", "AD")
+    ptx = hex_to_sat(builder, "000102030405060708090A0B0C", "ptx")
+    ciphertext, tag = photon_beetle(builder, nonce, key, A, ptx)
+    split = len(ptx) // 4
+    expected = "94103789DE1CFE6C7224F1E6EC2A9E64F158B76D40DA75DA5489760A03"
+    expected_ciphertext = expected[:split]
+    expected_tag = expected[split:]
+    set_expected_hex(builder, ciphertext, expected_ciphertext)
+    set_expected_hex(builder, tag, expected_tag)
+    solver = Kissat404()
+    for clause in builder.cnf.clauses:
+        solver.add_clause(clause)
+    assert solver.solve()
