@@ -299,3 +299,136 @@ def cofb_xor_blocks(builder, blocks, prefix="cofb_xor_blocks"):
         )
 
     return output
+
+def cofb_triple_squared(
+    builder,
+    l,
+    prefix="cofb_triple_squared"
+):
+    first_triple = cofb_triple(
+        builder,
+        l,
+        f"{prefix}_first"
+    )
+
+    second_triple = cofb_triple(
+        builder,
+        first_triple,
+        f"{prefix}_second"
+    )
+
+    return second_triple
+
+
+def cofb_process_associated_data(
+    builder,
+    associated_data,
+    y,
+    l,
+    key,
+    message_is_empty,
+    prefix="cofb_ad"
+):
+    ad_blocks = cofb_pad(
+        builder,
+        associated_data,
+        block_size=128,
+        prefix=f"{prefix}_pad"
+    )
+
+    for block_index in range(
+        len(ad_blocks) - 1
+    ):
+        l = cofb_double(
+            builder,
+            l,
+            f"{prefix}_double_{block_index}"
+        )
+
+        g_y = cofb_g(
+            builder,
+            y,
+            f"{prefix}_g_{block_index}"
+        )
+
+        mask = cofb_mask_block(
+            builder,
+            l,
+            f"{prefix}_mask_{block_index}"
+        )
+
+        x = cofb_xor_blocks(
+            builder,
+            [
+                ad_blocks[block_index],
+                g_y,
+                mask
+            ],
+            f"{prefix}_x_{block_index}"
+        )
+
+        y = cofb_gift_encrypt(
+            builder,
+            x,
+            key,
+            f"{prefix}_gift_{block_index}"
+        )
+
+    last_block_index = len(
+        ad_blocks
+    ) - 1
+
+    if (
+        len(associated_data) != 0
+        and
+        len(associated_data) % 128 == 0
+    ):
+        l = cofb_triple(
+            builder,
+            l,
+            f"{prefix}_last_triple"
+        )
+    else:
+        l = cofb_triple_squared(
+            builder,
+            l,
+            f"{prefix}_last_triple_squared"
+        )
+
+    if message_is_empty:
+        l = cofb_triple_squared(
+            builder,
+            l,
+            f"{prefix}_empty_message"
+        )
+
+    g_y = cofb_g(
+        builder,
+        y,
+        f"{prefix}_g_last"
+    )
+
+    mask = cofb_mask_block(
+        builder,
+        l,
+        f"{prefix}_mask_last"
+    )
+
+    x = cofb_xor_blocks(
+        builder,
+        [
+            ad_blocks[last_block_index],
+            g_y,
+            mask
+        ],
+        f"{prefix}_x_last"
+    )
+
+    y = cofb_gift_encrypt(
+        builder,
+        x,
+        key,
+        f"{prefix}_gift_last"
+    )
+
+    return y, l

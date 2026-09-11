@@ -444,3 +444,50 @@ def test_cofb_xor_blocks():
             assert output[i] in model
         else:
             assert -output[i] in model
+
+def test_cofb_triple_squared():
+    builder = BasicFunctions()
+
+    input_value = 0x8000000000000000
+    expected_value = 0x8000000000000036
+
+    l = []
+
+    for i in range(64):
+        var = builder.var(
+            f"triple_squared_{i}"
+        )
+
+        l.append(var)
+
+        bit = (
+            input_value >> (63 - i)
+        ) & 1
+
+        if bit == 1:
+            builder.cnf.append([var])
+        else:
+            builder.cnf.append([-var])
+
+    output = cofb_triple_squared(
+        builder,
+        l,
+        "test_triple_squared"
+    )
+
+    with Kissat404(
+        bootstrap_with=builder.cnf.clauses
+    ) as solver:
+
+        assert solver.solve()
+        model = solver.get_model()
+
+    output_value = 0
+
+    for i in range(64):
+        output_value <<= 1
+
+        if output[i] in model:
+            output_value |= 1
+
+    assert output_value == expected_value
