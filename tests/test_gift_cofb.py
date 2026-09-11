@@ -342,3 +342,105 @@ def test_cofb_gift_encrypt():
         ciphertext.append(value)
 
     assert ciphertext == expected_ciphertext
+
+def test_cofb_mask_block():
+    builder = BasicFunctions()
+
+    l = []
+
+    for i in range(64):
+        l.append(
+            builder.var(f"l_{i}")
+        )
+
+    output = cofb_mask_block(
+        builder,
+        l,
+        "test_mask"
+    )
+
+    assert len(output) == 128
+
+    assert output[:64] == l
+
+    with Kissat404(
+        bootstrap_with=builder.cnf.clauses
+    ) as solver:
+
+        assert solver.solve()
+        model = solver.get_model()
+
+    for i in range(64, 128):
+        assert -output[i] in model
+
+def test_cofb_xor_blocks():
+    builder = BasicFunctions()
+
+    a_bits = [1, 0, 1, 0]
+    b_bits = [1, 1, 0, 0]
+    c_bits = [0, 0, 1, 1]
+
+    a = []
+    b = []
+    c = []
+
+    for i in range(4):
+        a_var = builder.var(
+            f"a_{i}"
+        )
+
+        b_var = builder.var(
+            f"b_{i}"
+        )
+
+        c_var = builder.var(
+            f"c_{i}"
+        )
+
+        a.append(a_var)
+        b.append(b_var)
+        c.append(c_var)
+
+        builder.cnf.append(
+            [a_var]
+            if a_bits[i] == 1
+            else [-a_var]
+        )
+
+        builder.cnf.append(
+            [b_var]
+            if b_bits[i] == 1
+            else [-b_var]
+        )
+
+        builder.cnf.append(
+            [c_var]
+            if c_bits[i] == 1
+            else [-c_var]
+        )
+
+    output = cofb_xor_blocks(
+        builder,
+        [a, b, c],
+        "test_xor"
+    )
+
+    with Kissat404(
+        bootstrap_with=builder.cnf.clauses
+    ) as solver:
+
+        assert solver.solve()
+        model = solver.get_model()
+
+    expected = [
+        0,
+        1,
+        0,
+        1
+    ]
+
+    for i in range(4):
+        if expected[i] == 1:
+            assert output[i] in model
+        else:
+            assert -output[i] in model

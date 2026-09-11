@@ -210,3 +210,92 @@ def cofb_gift_encrypt(builder, block, key, prefix="cofb_gift_encrypt"):
     )
 
     return output_block
+
+def cofb_initialize(builder, nonce, key, prefix="cofb_initialize"):
+    if len(nonce) != 128:
+        raise ValueError(
+            "COFB nonce must contain 128 bits"
+        )
+
+    if len(key) != 128:
+        raise ValueError(
+            "COFB key must contain 128 bits"
+        )
+
+    y0 = cofb_gift_encrypt(
+        builder,
+        nonce,
+        key,
+        f"{prefix}_gift"
+    )
+
+    l = list(y0[:64])
+
+    return y0, l
+
+def cofb_mask_block(builder, l, prefix="cofb_mask_block"):
+    if len(l) != 64:
+        raise ValueError(
+            "COFB mask L must contain 64 bits"
+        )
+
+    output = list(l)
+
+    for i in range(64):
+        zero_var = builder.var(
+            f"{prefix}_zero_{i}"
+        )
+
+        builder.cnf.append(
+            [-zero_var]
+        )
+
+        output.append(
+            zero_var
+        )
+
+    return output
+
+def cofb_xor_blocks(builder, blocks, prefix="cofb_xor_blocks"):
+    if len(blocks) == 0:
+        raise ValueError(
+            "At least one block is required"
+        )
+
+    block_length = len(
+        blocks[0]
+    )
+
+    for block in blocks:
+        if len(block) != block_length:
+            raise ValueError(
+                "All blocks must have the same length"
+            )
+
+    output = []
+
+    for i in range(block_length):
+        output_var = builder.var(
+            f"{prefix}_{i}"
+        )
+
+        xor_vars = []
+
+        for block in blocks:
+            xor_vars.append(
+                block[i]
+            )
+
+        xor_vars.append(
+            output_var
+        )
+
+        builder.xor(
+            xor_vars
+        )
+
+        output.append(
+            output_var
+        )
+
+    return output
