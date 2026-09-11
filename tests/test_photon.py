@@ -336,12 +336,18 @@ def test_init_state():
     bits = Y+Z
     assert bits[248:256] == [0, 0, 0, 0, 0, 1, 0, 1]
 
+
+#w oficjalnym repo biorą lownibble-highnibble, czyli na odwrot
 def hex_to_sat(Builder, input, prefix):
     input_bits = [] 
-    for char in input:   
-        value = int(char, 16)
-        bits = [(value >> b) & 1 for b in range(4)]
-        input_bits.extend(bits)
+    for i in range(0, len(input), 2):
+        byte = int(input[i:i+2], 16)
+        low_nibble = byte & 0xF
+        high_nibble = byte >> 4
+        low_bits = [(low_nibble >> b) & 1 for b in range(4)]
+        high_bits = [(high_nibble >> b) & 1 for b in range(4)]
+        input_bits.extend(low_bits)
+        input_bits.extend(high_bits)
     sat_bits = []
     for i in range(len(input_bits)):
         v = Builder.var(f"{prefix}_{i}")
@@ -354,10 +360,14 @@ def hex_to_sat(Builder, input, prefix):
 
 def set_expected_hex(Builder, variables, hex_string):
     expected_bits = []
-    for char in hex_string:
-        value = int(char, 16)
-        bits = [(value >> b) & 1 for b in range(4)]
-        expected_bits.extend(bits)
+    for i in range(0, len(hex_string), 2):
+        byte = int(hex_string[i: i+2], 16)
+        low_nibble = byte & 0xF
+        high_nibble = byte >> 4
+        low_bits = [(low_nibble >> b) & 1 for b in range(4)]
+        high_bits = [(high_nibble >> b) & 1 for b in range(4)]
+        expected_bits.extend(low_bits)
+        expected_bits.extend(high_bits)
     assert len(variables) == len(expected_bits)
     for i in range(len(variables)):
         if expected_bits[i] == 0:
@@ -369,20 +379,12 @@ def test_photon_beetle_kat1():
     builder = BasicFunctions()
     key = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F", "key")
     nonce = hex_to_sat(builder,"000102030405060708090A0B0C0D0E0F","nonce")
-
     A = []
     ptx = []
-
     ciphertext, tag = photon_beetle(builder,nonce,key,A,ptx)
-
     assert ciphertext == []
-
     set_expected_hex(builder,tag,"DF4E0BAC1162408098FA5CF084D8F464")
-
     solver = Kissat404()
-
     for clause in builder.cnf.clauses:
         solver.add_clause(clause)
-
     assert solver.solve()
-
