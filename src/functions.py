@@ -13,7 +13,7 @@ def xor_const(builder, var_1, var_2, var_3):
         xor_bits(builder, var_1[i], var_2[i], var_3[i])
 
 def rotl(var, idx):
-    y = var[idx:] + var[:idx]
+    y = var[-idx:] + var[:-idx]
     return y
 #funkcje do SAT:
 def vector_xor_sat(builder, vectors, output):
@@ -160,7 +160,7 @@ def rho_west(tablica):
     
     #pierwszy wiersz zostawiamy
     lista = [tablica[1][i] for i in range(4)]
-    lista = rotl(lista, 3)
+    lista = rotl(lista, 1)
     for i in range(4):
         tablica[1][i] = lista[i]
 
@@ -216,7 +216,7 @@ def rho_east(tablica):
     lista = [tablica[2][i] for i in range(4)]
     lista = rotl(lista, 2)
     for j in range(4):
-        tablica[1][j] = lista[j]
+        tablica[2][j] = lista[j]
     for k in range(4):
         tablica[2][k] = rotl(tablica[2][k], 8)
 
