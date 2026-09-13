@@ -25,17 +25,17 @@ def vector_and_sat(builder, vectors, output):
         builder.equal_and(output[i], [vector[i] for vector in vectors])
 
 #czesci do xoodoo
-def theta_sat(tablica):
+def theta_sat(tablica, nr_xoodoo, nr_rundy_xoodoo):
     p = {}
     for i in range(4):
-        p[i] = [builder.var(f"p{i}_{j}") for j in range(32)]
+        p[i] = [builder.var(f"p{i}_{j}_{nr_xoodoo}_{nr_rundy_xoodoo}") for j in range(32)]
         vector_xor_sat(builder, [tablica[0][i], tablica[1][i], tablica[2][i]], p[i])
 
     #dodajemy te p do kolumny x-1
 
     e = {}
     for k in range(4):
-        e[k] = [builder.var(f"e{k}_{j}") for j in range(32)]
+        e[k] = [builder.var(f"e{k}_{j}_{nr_xoodoo}_{nr_rundy_xoodoo}") for j in range(32)]
         vector_xor_sat(builder, [rotl(p[(k-1) % 4], 5), rotl(p[(k-1) % 4], 14)], e[k])
 
     #xorujemy wartości e do kolumn tablicy
@@ -43,7 +43,7 @@ def theta_sat(tablica):
     for y in range(3):
         wynik[y] = {}
         for x in range(4):
-            wynik[y][x] = [builder.var(f"theta{y}_{x}_{j}") for j in range(32)]
+            wynik[y][x] = [builder.var(f"theta{y}_{x}_{j}_{nr_xoodoo}_{nr_rundy_xoodoo}") for j in range(32)]
             vector_xor_sat(builder, [tablica[y][x], e[x]], wynik[y][x])
 
     return wynik
@@ -52,7 +52,7 @@ def rho_west_sat(tablica):
     
     #pierwszy wiersz zostawiamy
     lista = [tablica[1][i] for i in range(4)]
-    lista = rotl(lista, 3)
+    lista = rotl(lista, 1)
     for i in range(4):
         tablica[1][i] = lista[i]
 
@@ -61,7 +61,7 @@ def rho_west_sat(tablica):
 
     return tablica
 
-def iota_sat(tablica, nr_rundy):
+def iota_sat(tablica, nr_rundy, nr_xoodoo):
     round_constants = [
         0x00000058,
         0x00000038,
@@ -77,21 +77,21 @@ def iota_sat(tablica, nr_rundy):
         0x00000012
     ]
 
-    constant = [int(bit) for bit in f"{round_constants[nr_rundy]:032b}"]
-    wynik = [builder.var(f"iota_{nr_rundy}_{j}") for j in range(32)]
+    constant = [(round_constants[nr_rundy] >> i) & 1 for i in range(32)]
+    wynik = [builder.var(f"iota_{nr_rundy}_{nr_xoodoo}_{j}") for j in range(32)]
     xor_const(builder, tablica[0][0], wynik, constant)
     tablica[0][0] = wynik
 
     return tablica
 
-def chi_sat(builder, tablica):
+def chi_sat(builder, tablica, nr_rundy, nr_xoodoo):
     wynik = {}
 
     for y in range(3):
         wynik[y] = {}
         for x in range(4):
-            temp = [builder.var(f"chi_temp_{x}_{y}_{m}") for m in range(32)]
-            wynik[y][x] = [builder.var(f"chi_{x}{y}{j}") for j in range(32)]
+            temp = [builder.var(f"chi_temp_{x}_{y}_{m}_{nr_rundy}_{nr_xoodoo}") for m in range(32)]
+            wynik[y][x] = [builder.var(f"chi_{x}{y}{j}_{nr_rundy}_{nr_xoodoo}") for j in range(32)]
 
             vector_and_sat(
                 builder,
@@ -116,7 +116,7 @@ def rho_east_sat(tablica):
     lista = [tablica[2][i] for i in range(4)]
     lista = rotl(lista, 2)
     for j in range(4):
-        tablica[1][j] = lista[j]
+        tablica[2][j] = lista[j]
     for k in range(4):
         tablica[2][k] = rotl(tablica[2][k], 8)
 
