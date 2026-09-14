@@ -3,7 +3,11 @@ from pysat.solvers import Kissat404
 from .basics import BasicFunctions
 from .gift_cofb import gift_cofb_encrypt
 
-def bytes_to_fixed_sat_bits(builder, data, prefix):
+def bytes_to_fixed_sat_bits(
+    builder,
+    data,
+    prefix
+):
     bits = []
 
     for byte_index, byte in enumerate(data):
@@ -25,7 +29,12 @@ def bytes_to_fixed_sat_bits(builder, data, prefix):
 
     return bits
 
-def key_to_sat_bits_with_unknowns(builder, true_key, unknown_positions, prefix="recovery_key"):
+def key_to_sat_bits_with_unknowns(
+    builder,
+    true_key,
+    unknown_positions,
+    prefix="recovery_key"
+):
     if len(true_key) != 16:
         raise ValueError(
             "GIFT-COFB key must contain 16 bytes"
@@ -46,7 +55,7 @@ def key_to_sat_bits_with_unknowns(builder, true_key, unknown_positions, prefix="
 
     bit_position = 0
 
-    for byte_index, byte in enumerate(true_key):
+    for byte in true_key:
         for bit_index in range(7, -1, -1):
             var = builder.var(
                 f"{prefix}_{bit_position}"
@@ -68,7 +77,11 @@ def key_to_sat_bits_with_unknowns(builder, true_key, unknown_positions, prefix="
 
     return key_bits
 
-def constrain_sat_bits_to_bytes(builder, bits, expected):
+def constrain_sat_bits_to_bytes(
+    builder,
+    bits,
+    expected
+):
     if len(bits) != len(expected) * 8:
         raise ValueError(
             "Number of SAT bits does not match "
@@ -92,7 +105,10 @@ def constrain_sat_bits_to_bytes(builder, bits, expected):
 
             position += 1
 
-def sat_bits_to_bytes(bits, model):
+def sat_bits_to_bytes(
+    bits,
+    model
+):
     model_set = set(model)
 
     result = bytearray()
@@ -116,7 +132,18 @@ def sat_bits_to_bytes(bits, model):
 
     return bytes(result)
 
-def recover_key_gift_cofb(true_key, unknown_positions, nonce, associated_data, message, known_ciphertext, known_tag):
+def recover_key_gift_cofb(
+    true_key,
+    unknown_positions,
+    nonce,
+    associated_data,
+    message,
+    known_ciphertext,
+    known_tag
+):
+    total_start = perf_counter()
+    build_start = perf_counter()
+
     builder = BasicFunctions()
 
     key_bits = (
@@ -171,7 +198,21 @@ def recover_key_gift_cofb(true_key, unknown_positions, nonce, associated_data, m
         known_tag
     )
 
-    start_time = perf_counter()
+    build_time = (
+        perf_counter()
+        -
+        build_start
+    )
+
+    number_of_variables = (
+        builder.idp.top
+    )
+
+    number_of_clauses = len(
+        builder.cnf.clauses
+    )
+
+    solve_start = perf_counter()
 
     with Kissat404(
         bootstrap_with=builder.cnf.clauses
@@ -179,16 +220,88 @@ def recover_key_gift_cofb(true_key, unknown_positions, nonce, associated_data, m
 
         satisfiable = solver.solve()
 
-        solve_time = (perf_counter() -start_time)
+        solve_time = (
+            perf_counter()
+            -
+            solve_start
+        )
 
         if not satisfiable:
-            return None, solve_time
+            total_time = (
+                perf_counter()
+                -
+                total_start
+            )
+
+            return {
+                "recovered_key": None,
+                "build_time": build_time,
+                "solve_time": solve_time,
+                "uniqueness_time": 0.0,
+                "total_time": total_time,
+                "unique": False,
+                "variables": number_of_variables,
+                "clauses": number_of_clauses
+            }
 
         model = solver.get_model()
+
+    model_set = set(model)
 
     recovered_key = sat_bits_to_bytes(
         key_bits,
         model
     )
 
-    return recovered_key, solve_time
+    blocking_clause = []
+
+    for var in key_bits:
+        if var in model_set:
+            blocking_clause.append(
+                -var
+            )
+        else:
+            blocking_clause.append(
+                var
+            )
+
+    second_clauses = (
+        builder.cnf.clauses
+        +
+        [blocking_clause]
+    )
+
+    uniqueness_start = perf_counter()
+
+    with Kissat404(
+        bootstrap_with=second_clauses
+    ) as second_solver:
+
+        second_solution = (
+            second_solver.solve()
+        )
+
+    uniqueness_time = (
+        perf_counter()
+        -
+        uniqueness_start
+    )
+
+    unique = not second_solution
+
+    total_time = (
+        perf_counter()
+        -
+        total_start
+    )
+
+    return {
+        "recovered_key": recovered_key,
+        "build_time": build_time,
+        "solve_time": solve_time,
+        "uniqueness_time": uniqueness_time,
+        "total_time": total_time,
+        "unique": unique,
+        "variables": number_of_variables,
+        "clauses": number_of_clauses
+    }

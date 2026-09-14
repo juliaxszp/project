@@ -1,4 +1,4 @@
-from src.reference_gift_cofb import (
+from src.gift_cofb_reference import (
     gift128_reference,
     gift_cofb_encrypt_reference
 )
