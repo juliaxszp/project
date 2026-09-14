@@ -419,3 +419,186 @@ def cofb_process_associated_data(builder, associated_data, y, l, key, message_is
     )
 
     return y, l
+
+def cofb_process_message(builder, message, y, l, key, prefix="cofb_message"):
+    if len(message) == 0:
+        return [], y, l
+
+    message_length = len(message)
+
+    message_blocks = cofb_pad(
+        builder,
+        message,
+        block_size=128,
+        prefix=f"{prefix}_pad"
+    )
+
+    ciphertext_blocks = []
+
+    for block_index in range(
+        len(message_blocks) - 1
+    ):
+        l = cofb_double(
+            builder,
+            l,
+            f"{prefix}_double_{block_index}"
+        )
+
+        ciphertext_block = (
+            cofb_xor_blocks(
+                builder,
+                [
+                    message_blocks[block_index],
+                    y
+                ],
+                f"{prefix}_ciphertext_{block_index}"
+            )
+        )
+
+        ciphertext_blocks.append(
+            ciphertext_block
+        )
+
+        g_y = cofb_g(
+            builder,
+            y,
+            f"{prefix}_g_{block_index}"
+        )
+
+        mask = cofb_mask_block(
+            builder,
+            l,
+            f"{prefix}_mask_{block_index}"
+        )
+
+        x = cofb_xor_blocks(
+            builder,
+            [
+                message_blocks[block_index],
+                g_y,
+                mask
+            ],
+            f"{prefix}_x_{block_index}"
+        )
+
+        y = cofb_gift_encrypt(
+            builder,
+            x,
+            key,
+            f"{prefix}_gift_{block_index}"
+        )
+
+    last_block_index = (
+        len(message_blocks) - 1
+    )
+
+    if message_length % 128 == 0:
+        l = cofb_triple(
+            builder,
+            l,
+            f"{prefix}_last_triple"
+        )
+    else:
+        l = cofb_triple_squared(
+            builder,
+            l,
+            f"{prefix}_last_triple_squared"
+        )
+
+    ciphertext_block = cofb_xor_blocks(
+        builder,
+        [
+            message_blocks[last_block_index],
+            y
+        ],
+        f"{prefix}_ciphertext_last"
+    )
+
+    ciphertext_blocks.append(
+        ciphertext_block
+    )
+
+    g_y = cofb_g(
+        builder,
+        y,
+        f"{prefix}_g_last"
+    )
+
+    mask = cofb_mask_block(
+        builder,
+        l,
+        f"{prefix}_mask_last"
+    )
+
+    x = cofb_xor_blocks(
+        builder,
+        [
+            message_blocks[last_block_index],
+            g_y,
+            mask
+        ],
+        f"{prefix}_x_last"
+    )
+
+    y = cofb_gift_encrypt(
+        builder,
+        x,
+        key,
+        f"{prefix}_gift_last"
+    )
+
+    ciphertext = []
+
+    for block in ciphertext_blocks:
+        ciphertext.extend(block)
+
+    ciphertext = ciphertext[
+        :message_length
+    ]
+
+    return ciphertext, y, l
+
+def gift_cofb_encrypt(builder, nonce, associated_data, message, key, prefix="gift_cofb_encrypt"):
+    if len(nonce) != 128:
+        raise ValueError(
+            "COFB nonce must contain 128 bits"
+        )
+
+    if len(key) != 128:
+        raise ValueError(
+            "COFB key must contain 128 bits"
+        )
+
+    y, l = cofb_initialize(
+        builder,
+        nonce,
+        key,
+        f"{prefix}_initialize"
+    )
+
+    y, l = cofb_process_associated_data(
+        builder,
+        associated_data,
+        y,
+        l,
+        key,
+        message_is_empty=(
+            len(message) == 0
+        ),
+        prefix=f"{prefix}_ad"
+    )
+
+    ciphertext, y, l = (
+        cofb_process_message(
+            builder,
+            message,
+            y,
+            l,
+            key,
+            prefix=f"{prefix}_message"
+        )
+    )
+
+    tag = list(y)
+
+    return ciphertext, tag

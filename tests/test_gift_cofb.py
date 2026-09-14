@@ -554,3 +554,161 @@ def test_cofb_process_associated_data():
 
     for var in output_l:
         assert -var in model
+
+def test_cofb_process_message_partial():
+    builder = BasicFunctions()
+
+    message_bits = [
+        1, 0, 1, 1, 0,
+        0, 1, 0, 1, 0
+    ]
+
+    y_bits = [
+        0, 1, 1, 0, 0,
+        1, 0, 0, 1, 1
+    ]
+
+    message = []
+    y = []
+    l = []
+    key = []
+
+    for i in range(
+        len(message_bits)
+    ):
+        var = builder.var(
+            f"message_{i}"
+        )
+
+        message.append(var)
+
+        if message_bits[i] == 1:
+            builder.cnf.append([var])
+        else:
+            builder.cnf.append([-var])
+
+    for i in range(128):
+        var = builder.var(
+            f"message_y_{i}"
+        )
+
+        y.append(var)
+
+        if (
+            i < len(y_bits)
+            and
+            y_bits[i] == 1
+        ):
+            builder.cnf.append([var])
+        else:
+            builder.cnf.append([-var])
+
+    for i in range(64):
+        var = builder.var(
+            f"message_l_{i}"
+        )
+
+        l.append(var)
+
+        builder.cnf.append([-var])
+
+    for i in range(128):
+        var = builder.var(
+            f"message_key_{i}"
+        )
+
+        key.append(var)
+
+        builder.cnf.append([-var])
+
+    ciphertext, output_y, output_l = (
+        cofb_process_message(
+            builder,
+            message,
+            y,
+            l,
+            key,
+            "test_message"
+        )
+    )
+
+    assert len(ciphertext) == len(
+        message_bits
+    )
+
+    assert len(output_y) == 128
+    assert len(output_l) == 64
+
+    expected_ciphertext = []
+
+    for i in range(
+        len(message_bits)
+    ):
+        expected_ciphertext.append(
+            message_bits[i] ^ y_bits[i]
+        )
+
+    with Kissat404(
+        bootstrap_with=builder.cnf.clauses
+    ) as solver:
+
+        assert solver.solve()
+        model = solver.get_model()
+
+    for i in range(
+        len(expected_ciphertext)
+    ):
+        if expected_ciphertext[i] == 1:
+            assert ciphertext[i] in model
+        else:
+            assert -ciphertext[i] in model
+
+    for var in output_l:
+        assert -var in model
+
+def test_gift_cofb_encrypt_empty_message():
+    builder = BasicFunctions()
+
+    nonce = []
+    key = []
+
+    for i in range(128):
+        nonce_var = builder.var(
+            f"full_nonce_{i}"
+        )
+
+        key_var = builder.var(
+            f"full_key_{i}"
+        )
+
+        nonce.append(nonce_var)
+        key.append(key_var)
+
+        builder.cnf.append(
+            [-nonce_var]
+        )
+
+        builder.cnf.append(
+            [-key_var]
+        )
+
+    associated_data = []
+    message = []
+
+    ciphertext, tag = gift_cofb_encrypt(
+        builder,
+        nonce,
+        associated_data,
+        message,
+        key,
+        "test_full_empty"
+    )
+
+    assert ciphertext == []
+    assert len(tag) == 128
+
+    with Kissat404(
+        bootstrap_with=builder.cnf.clauses
+    ) as solver:
+
+        assert solver.solve()
