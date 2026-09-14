@@ -1,3 +1,1 @@
-wheel
-pytest
-python-sat
+python-sat[cryptosat]

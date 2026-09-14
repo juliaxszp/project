@@ -3,9 +3,10 @@
 #stale ustalony Nonce: 1234567890abcdee
 #stale ustalone AD: aaabbbcccddd
 from .functions import *
-klucz = "a0bf9f4acef48231a0bf9f4acef48231"
-nonce = "1234567890abcdee1234567890abcdee"
-ad = "aabbccdd"
+import json
+#klucz = "a0bf9f4acef48231a0bf9f4acef48231"
+#nonce = "1234567890abcdee1234567890abcdee"
+#ad = "aabbccdd"
 
 def xoodoo(tablica):
     for itterator in range(12):
@@ -389,8 +390,8 @@ def xoodyak():
         nr_xoodoo_tag
     )
 
-    print("Użyty klucz:", klucz)
-    print("Użyty Nonce:", nonce)
+    print("Użyty klucz:", Key)
+    print("Użyty Nonce:", Nonce)
     print("Użyte AD:", AD)
     print("Uzyskany szyfrogram:", otrzymany_szyfrogram)
     print("Oczekiwany szyfrogram:", real_ciphertext)
@@ -407,12 +408,45 @@ def xoodyak():
         print("Tag: sukces!")
     else:
         print("Tag: porażka.")
-
-    return key_sat, nonce_sat, ad_sat, plaintext_sat, ct_sat, tag_sat, tablica_sat
+    dane = {
+        "key": Key,
+        "nonce": Nonce,
+        "additional": AD,
+        "plaintext": Plaintext,
+        "ciphertext": otrzymany_szyfrogram,
+        "tag": otrzymany_tag
+    }
+    return key_sat, nonce_sat, ad_sat, plaintext_sat, ct_sat, tag_sat, tablica_sat, dane
 
 
 def manager():
-    key_sat, nonce_sat, ad_sat, plaintext_sat, ct_sat, tag_sat, tablica_sat = xoodyak()
-
+    key_sat, nonce_sat, ad_sat, plaintext_sat, ct_sat, tag_sat, tablica_sat, dane = xoodyak()
+    dlugosc_tekstu_jawnego = len(dane["plaintext"]) // 2
+    nazwa = f"xoodyak_ptlen{dlugosc_tekstu_jawnego}B"
+    builder.cnf.to_file(f"{nazwa}.cnf")
+    #do pomocniczego Json:
+    opis = {
+        "Algorithm": "Xoodyak",
+        "Mode": "keyed",
+        "plaintext_length_in_bytes": dlugosc_tekstu_jawnego,
+        "values": dane,
+        "variables": {
+            
+            "key": key_sat,
+            "nonce": nonce_sat,
+            "ad": ad_sat,
+            "plaintext": plaintext_sat,
+            "ciphertext": ct_sat,
+            "tag": tag_sat
+        },
+        "encoding": {
+            "values": "hex",
+            "bit_order_inside_bytes": "LSB-first"
+            
+        }
+    }
+    with open(f"{nazwa}.json", "w", encoding="utf-8") as plik:
+        json.dump(opis, plik, indent=4)
+    print("Zapis plików zakończony")
 
 manager()
