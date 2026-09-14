@@ -21,7 +21,7 @@ def test_kpa265_no_ad():
         for b in range(8):
             key_bits.append((byte >> b) & 1)
     assert len(key_bits) == 128
-    known_key_bits = 127
+    known_key_bits = 96
     for i in range(known_key_bits):
         if key_bits[i] == 1:
             builder.cnf.append([key[i]])
@@ -36,8 +36,8 @@ def test_kpa265_no_ad():
         builder.equals(generated_bit, known_bit)
     for generated_bit, known_bit in zip(generated_tag, known_tag):
         builder.equals(generated_bit, known_bit)
-    print("variables:", builder.idp.top)
-    print("clauses:", len(builder.cnf.clauses))
+    print("ilosc literalow:", builder.idp.top)
+    print("ilosc klauzul:", len(builder.cnf.clauses))
     solver = Kissat404()
     for clause in builder.cnf.clauses:
         solver.add_clause(clause)
@@ -47,7 +47,7 @@ def test_kpa265_no_ad():
     result = solver.solve()
     lapse = time.time() - start
     print(result)
-    print(f"lapse {lapse} s")
+    print(f"czas {lapse} s")
     assert result
     recovered_bits = []
     model = solver.get_model()
@@ -62,8 +62,8 @@ def test_kpa265_no_ad():
     for i in range(known_key_bits, 128):
         print(
             f"key[{i}]: "
-            f"expected={key_bits[i]}, "
-            f"recovered={recovered_bits[i]}"
+            f"oczekiwany={key_bits[i]}, "
+            f"odzyskany={recovered_bits[i]}"
         )
 
         assert recovered_bits[i] == key_bits[i]
