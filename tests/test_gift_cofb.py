@@ -712,3 +712,261 @@ def test_gift_cofb_encrypt_empty_message():
     ) as solver:
 
         assert solver.solve()
+
+def kat_bytes_to_sat_bits(
+    builder,
+    data,
+    prefix
+):
+    bits = []
+
+    for byte_index, byte in enumerate(data):
+        for bit_index in range(7, -1, -1):
+            var = builder.var(
+                f"{prefix}_{byte_index}_{bit_index}"
+            )
+
+            bits.append(var)
+
+            bit = (
+                byte >> bit_index
+            ) & 1
+
+            if bit == 1:
+                builder.cnf.append([var])
+            else:
+                builder.cnf.append([-var])
+
+    return bits
+
+def kat_sat_bits_to_bytes(
+    bits,
+    model
+):
+    result = []
+
+    model_set = set(model)
+
+    for start in range(
+        0,
+        len(bits),
+        8
+    ):
+        value = 0
+
+        for var in bits[
+            start:start + 8
+        ]:
+            value <<= 1
+
+            if var in model_set:
+                value |= 1
+
+        result.append(value)
+
+    return bytes(result)
+
+def run_gift_cofb_kat(
+    key_hex,
+    nonce_hex,
+    plaintext_hex,
+    associated_data_hex,
+    expected_hex,
+    prefix
+):
+    builder = BasicFunctions()
+
+    key_bytes = bytes.fromhex(
+        key_hex
+    )
+
+    nonce_bytes = bytes.fromhex(
+        nonce_hex
+    )
+
+    plaintext_bytes = bytes.fromhex(
+        plaintext_hex
+    )
+
+    associated_data_bytes = bytes.fromhex(
+        associated_data_hex
+    )
+
+    expected_bytes = bytes.fromhex(
+        expected_hex
+    )
+
+    key = kat_bytes_to_sat_bits(
+        builder,
+        key_bytes,
+        f"{prefix}_key"
+    )
+
+    nonce = kat_bytes_to_sat_bits(
+        builder,
+        nonce_bytes,
+        f"{prefix}_nonce"
+    )
+
+    plaintext = kat_bytes_to_sat_bits(
+        builder,
+        plaintext_bytes,
+        f"{prefix}_plaintext"
+    )
+
+    associated_data = kat_bytes_to_sat_bits(
+        builder,
+        associated_data_bytes,
+        f"{prefix}_ad"
+    )
+
+    ciphertext, tag = gift_cofb_encrypt(
+        builder,
+        nonce,
+        associated_data,
+        plaintext,
+        key,
+        prefix
+    )
+
+    with Kissat404(
+        bootstrap_with=builder.cnf.clauses
+    ) as solver:
+
+        assert solver.solve()
+
+        model = solver.get_model()
+
+    actual_ciphertext = (
+        kat_sat_bits_to_bytes(
+            ciphertext,
+            model
+        )
+    )
+
+    actual_tag = (
+        kat_sat_bits_to_bytes(
+            tag,
+            model
+        )
+    )
+
+    expected_ciphertext = (
+        expected_bytes[
+            :len(plaintext_bytes)
+        ]
+    )
+
+    expected_tag = (
+        expected_bytes[
+            len(plaintext_bytes):
+        ]
+    )
+
+    assert (
+        len(expected_tag)
+        == 16
+    )
+
+    assert (
+        actual_ciphertext
+        == expected_ciphertext
+    )
+
+    assert (
+        actual_tag
+        == expected_tag
+    )
+
+def test_gift_cofb_kat_count_1():
+    run_gift_cofb_kat(
+        key_hex=(
+            "000102030405060708090A0B0C0D0E0F"
+        ),
+        nonce_hex=(
+            "000102030405060708090A0B0C0D0E0F"
+        ),
+        plaintext_hex="",
+        associated_data_hex="",
+        expected_hex=(
+            "368965836D36614DE2FC24D0F801B9AF"
+        ),
+        prefix="kat_1"
+    )
+
+def test_gift_cofb_kat_count_2():
+    run_gift_cofb_kat(
+        key_hex=(
+            "000102030405060708090A0B0C0D0E0F"
+        ),
+        nonce_hex=(
+            "000102030405060708090A0B0C0D0E0F"
+        ),
+        plaintext_hex="",
+        associated_data_hex="00",
+        expected_hex=(
+            "AE5DCDD1285D5177FE251DEB99D727DC"
+        ),
+        prefix="kat_2"
+    )
+
+def test_gift_cofb_kat_count_34():
+    run_gift_cofb_kat(
+        key_hex=(
+            "000102030405060708090A0B0C0D0E0F"
+        ),
+        nonce_hex=(
+            "000102030405060708090A0B0C0D0E0F"
+        ),
+        plaintext_hex="00",
+        associated_data_hex="",
+        expected_hex=(
+            "5DF96DB329E92688242EF4E06F94FE1BD9"
+        ),
+        prefix="kat_34"
+    )
+
+def test_gift_cofb_kat_count_545():
+    run_gift_cofb_kat(
+        key_hex=(
+            "000102030405060708090A0B0C0D0E0F"
+        ),
+        nonce_hex=(
+            "000102030405060708090A0B0C0D0E0F"
+        ),
+        plaintext_hex=(
+            "000102030405060708090A0B0C0D0E0F"
+        ),
+        associated_data_hex=(
+            "000102030405060708090A0B0C0D0E0F"
+        ),
+        expected_hex=(
+            "3BFF715A56CBA49D1F7AC0691A966FDC"
+            "BF77814044BF3FC9A9DEBBD393F545D4"
+        ),
+        prefix="kat_545"
+    )
+
+def test_gift_cofb_kat_count_1089():
+    run_gift_cofb_kat(
+        key_hex=(
+            "000102030405060708090A0B0C0D0E0F"
+        ),
+        nonce_hex=(
+            "000102030405060708090A0B0C0D0E0F"
+        ),
+        plaintext_hex=(
+            "000102030405060708090A0B0C0D0E0F"
+            "101112131415161718191A1B1C1D1E1F"
+        ),
+        associated_data_hex=(
+            "000102030405060708090A0B0C0D0E0F"
+            "101112131415161718191A1B1C1D1E1F"
+        ),
+        expected_hex=(
+            "BAF563C60FBEDDC5662995F4C678BE80"
+            "A7F7DE9B3AD8C97AA6CA17016D2AE65"
+            "08E6FB3F79B412A1627AB7DFA755E0A22"
+        ),
+        prefix="kat_1089"
+    )
