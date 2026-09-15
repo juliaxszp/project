@@ -92,7 +92,7 @@ jobs:
 
       - name: Upload result
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: result-${{ matrix.solver }}-${{ matrix.unknown_bits }}-${{ matrix.instance }}
           path: wyniki_${{ matrix.solver }}_${{ matrix.unknown_bits }}_${{ matrix.instance }}.json
