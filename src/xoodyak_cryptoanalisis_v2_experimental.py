@@ -3,18 +3,17 @@ import argparse
 import json
 import time
 import resource
+import subprocess
+import re
+import os
 from pysat.formula import CNF
-def wybierz_solver(solver_name):
-    if solver_name == "Kissat404":
-        from pysat.solvers import Kissat404
-        return Kissat404
-    elif solver_name == "CryptoMinisat":
-        from pysat.solvers import CryptoMinisat
-        return CryptoMinisat
+from pysat.solvers import Glucose3
+
 nazwa = f"xoodyak_ptlen64B"
 
 with open(f"{nazwa}.json", "r", encoding="UTF-8") as plik:
     dane = json.load(plik)
+
 def hex_na_bity(hex):
     wynik = []
     for i in range(0, len(hex), 2):
@@ -22,6 +21,7 @@ def hex_na_bity(hex):
         for j in range(8):
             wynik.append((bajt >> j) & 1)
     return wynik
+
 def ustaw_wartosc(zmienne, bity):
     if len(zmienne) != len(bity):
         raise ValueError(f"Niezgodne długości list: {len(zmienne)} i bitów: {len(bity)}")
@@ -32,6 +32,7 @@ def ustaw_wartosc(zmienne, bity):
         else:
             wynik.append(-zmienna)
     return wynik
+
 def odczytaj_bity_z_sat(zmienne, model):
     model_set = set(model)
     wynik = []
@@ -41,7 +42,7 @@ def odczytaj_bity_z_sat(zmienne, model):
         else:
             wynik.append(0)
     return wynik
-    
+
 def bity_na_hex_lsb(bity):
     wynik = ""
     for i in range(0, len(bity), 8):
@@ -50,9 +51,9 @@ def bity_na_hex_lsb(bity):
             bajt |= bity[i + j] << j
         wynik += f"{bajt:02x}"
     return wynik
-    
 
 def sprawdz_poprawnosc():
+    cnf = CNF(from_file=f"{nazwa}.cnf")
     bity_klucza = hex_na_bity(dane["values"]["key"])
     bity_nonce = hex_na_bity(dane["values"]["nonce"])
     bity_ad = hex_na_bity(dane["values"]["additional"])
@@ -97,7 +98,7 @@ def sprawdz_poprawnosc():
     else:
         print("tag: porażka")
     return
-    
+
 def znane_bity_klucza(zmienne, bity, poczatek, liczba_nieznanych_bitow):
     wynik = []
     koniec = poczatek + liczba_nieznanych_bitow
@@ -109,7 +110,109 @@ def znane_bity_klucza(zmienne, bity, poczatek, liczba_nieznanych_bitow):
         else:
             wynik.append(-zmienne[i])
     return wynik
-def kryptoanaliza(wybrany_solver, solver_name, liczba_nieznanych_bitow, instancja):
+
+def uruchom_solver(solver_name, plik_cnf):
+    if solver_name == "Kissat404":
+        argumenty = [
+            "kissat",
+            plik_cnf
+        ]
+    elif solver_name == "CryptoMinisat":
+        argumenty = [
+            "cryptominisat5",
+            "--verb", "1",
+            "--verbstat", "2",
+            "--printsol", "1",
+            plik_cnf
+        ]
+    else:
+        raise ValueError("Nieznany solver")
+
+    return subprocess.run(
+        argumenty,
+        capture_output=True,
+        text=True
+    )
+
+def odczytaj_wynik_solvera(output, returncode):
+    if returncode == 10 or "s SATISFIABLE" in output:
+        return "SAT"
+    elif returncode == 20 or "s UNSATISFIABLE" in output:
+        return "UNSAT"
+    else:
+        raise RuntimeError(
+            f"Solver nie zwrócił SAT ani UNSAT. Kod wyjścia: {returncode}\n{output}"
+        )
+
+def odczytaj_model(output):
+    model = []
+    for linia in output.splitlines():
+        if linia.startswith("v "):
+            for wartosc in linia.split()[1:]:
+                literal = int(wartosc)
+                if literal != 0:
+                    model.append(literal)
+    return model
+
+def parsuj_statystyki_kissat(output):
+    konflikty = None
+    decyzje = None
+    propagacje = None
+
+    for linia in output.splitlines():
+        linia_mala = linia.lower()
+
+        if "conflicts" in linia_mala:
+            wynik = re.search(r"\bconflicts\b[^0-9]*([0-9]+)", linia_mala)
+            if wynik:
+                konflikty = int(wynik.group(1))
+
+        if "decisions" in linia_mala:
+            wynik = re.search(r"\bdecisions\b[^0-9]*([0-9]+)", linia_mala)
+            if wynik:
+                decyzje = int(wynik.group(1))
+
+        if "propagations" in linia_mala:
+            wynik = re.search(r"\bpropagations\b[^0-9]*([0-9]+)", linia_mala)
+            if wynik:
+                propagacje = int(wynik.group(1))
+
+    return konflikty, decyzje, propagacje
+
+def parsuj_statystyki_cryptominisat(output):
+    konflikty = None
+    decyzje = None
+    propagacje = None
+
+    for linia in output.splitlines():
+        linia_mala = linia.lower()
+
+        if "conflicts" in linia_mala:
+            wynik = re.search(r"\bconflicts\b\s*:\s*([0-9]+)", linia_mala)
+            if wynik:
+                konflikty = int(wynik.group(1))
+
+        if "decisions" in linia_mala:
+            wynik = re.search(r"\bdecisions\b\s*:\s*([0-9]+)", linia_mala)
+            if wynik:
+                decyzje = int(wynik.group(1))
+
+        if "propagations" in linia_mala:
+            wynik = re.search(r"\bpropagations\b\s*:\s*([0-9]+)", linia_mala)
+            if wynik:
+                propagacje = int(wynik.group(1))
+
+    return konflikty, decyzje, propagacje
+
+def parsuj_statystyki(solver_name, output):
+    if solver_name == "Kissat404":
+        return parsuj_statystyki_kissat(output)
+    elif solver_name == "CryptoMinisat":
+        return parsuj_statystyki_cryptominisat(output)
+    else:
+        raise ValueError("Nieznany solver")
+
+def kryptoanaliza(solver_name, liczba_nieznanych_bitow, instancja):
     cnf_test = CNF(from_file=f"{nazwa}.cnf")
     if instancja == 1:
         poczatek = 0
@@ -138,33 +241,38 @@ def kryptoanaliza(wybrany_solver, solver_name, liczba_nieznanych_bitow, instancj
     for literal in ograniczenia:
         cnf_test.append([literal])
 
-    with wybrany_solver(bootstrap_with=cnf_test.clauses) as solver:
+    plik_cnf = f"temp_{solver_name}_{liczba_nieznanych_bitow}_{instancja}.cnf"
+    cnf_test.to_file(plik_cnf)
+
+    try:
         poczatek_czasu = time.perf_counter()
-        wynik = solver.solve()
+        proces = uruchom_solver(solver_name, plik_cnf)
         koniec_czasu = time.perf_counter()
-        try:
-            statystyki = solver.accum_stats()
-            konflikty = statystyki.get("conflicts")
-            decyzje = statystyki.get("decisions")
-            propagacje = statystyki.get("propagations")
-        except (NotImplementedError, AttributeError):
-            konflikty = None
-            decyzje = None
-            propagacje = None
-        if wynik:
-            model = solver.get_model()
-            result = "SAT"
-            odzyskane_bity_klucza = odczytaj_bity_z_sat(dane["variables"]["key"], model)
-            odzyskany_klucz = bity_na_hex_lsb(odzyskane_bity_klucza)
-            poprawny_klucz = odzyskany_klucz == dane["values"]["key"]
-        else:
-            model = None
-            result = "UNSAT"
-    pamiec = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+    finally:
+        if os.path.exists(plik_cnf):
+            os.remove(plik_cnf)
+
+    output = proces.stdout + "\n" + proces.stderr
+    result = odczytaj_wynik_solvera(output, proces.returncode)
+    konflikty, decyzje, propagacje = parsuj_statystyki(solver_name, output)
+
+    if result == "SAT":
+        model = odczytaj_model(output)
+        if not model:
+            raise RuntimeError("Solver zwrócił SAT, ale nie udało się odczytać modelu z linii v.")
+        odzyskane_bity_klucza = odczytaj_bity_z_sat(dane["variables"]["key"], model)
+        odzyskany_klucz = bity_na_hex_lsb(odzyskane_bity_klucza)
+        poprawny_klucz = odzyskany_klucz == dane["values"]["key"]
+    else:
+        model = None
+        poprawny_klucz = None
+
+    pamiec = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss / 1024
     czas = koniec_czasu - poczatek_czasu
     zmienne = cnf_test.nv
     klauzule = len(cnf_test.clauses)
     return solver_name, liczba_nieznanych_bitow, result, poprawny_klucz, czas, konflikty, decyzje, propagacje, pamiec, zmienne, klauzule
+
 def manager():
 #    sterownik = int(input("1: sprawdzenie poprawności równań CNF. 2: kryptoanaliza"))
 #    if sterownik == 1:
@@ -179,8 +287,7 @@ def manager():
     solver_name = args.solver
     liczba_nieznanych_bitow = args.unknown_key_bits
     instancja = args.instance
-    wybrany_solver = wybierz_solver(solver_name)
-    solver_name, liczba_nieznanych_bitow, result, poprawny_klucz, czas, konflikty, decyzje, propagacje, pamiec, zmienne, klauzule = kryptoanaliza(wybrany_solver, solver_name, liczba_nieznanych_bitow, instancja)
+    solver_name, liczba_nieznanych_bitow, result, poprawny_klucz, czas, konflikty, decyzje, propagacje, pamiec, zmienne, klauzule = kryptoanaliza(solver_name, liczba_nieznanych_bitow, instancja)
     wyniki = {
         "instancja": instancja,
         "solver_name": solver_name,
@@ -200,5 +307,5 @@ def manager():
         json.dump(wyniki, plik, indent=4)
     print("Solver:", solver_name)
     print("Liczba nieznanych bitów:", liczba_nieznanych_bitow)
-    
+
 manager()
