@@ -1,0 +1,14 @@
+{
+    "instancja": 5,
+    "solver_name": "CryptoMinisat",
+    "liczba_nieznanych_bitow": 8,
+    "rezultat": "SAT",
+    "poprawny_klucz": true,
+    "czas": 26.181656358999987,
+    "konflikty": null,
+    "decyzje": null,
+    "propagacje": null,
+    "pamiec": 226.53125,
+    "zmienne": 90624,
+    "klauzule": 359416
+}

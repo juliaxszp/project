@@ -19,44 +19,44 @@ jobs:
         include:
           - solver: Kissat404
             unknown_bits: 8
-            instance: 1
+            instance: 7
           - solver: Kissat404
             unknown_bits: 8
-            instance: 2
+            instance: 8
           - solver: Kissat404
             unknown_bits: 8
-            instance: 3
+            instance: 9
           - solver: Kissat404
             unknown_bits: 8
-            instance: 4
+            instance: 10
 
           - solver: Kissat404
             unknown_bits: 8
-            instance: 5
+            instance: 11
           - solver: Kissat404
             unknown_bits: 8
-            instance: 6
+            instance: 12
 
 
           - solver: CryptoMinisat
             unknown_bits: 8
-            instance: 1
+            instance: 7
           - solver: CryptoMinisat
             unknown_bits: 8
-            instance: 2
+            instance: 8
           - solver: CryptoMinisat
             unknown_bits: 8
-            instance: 3
+            instance: 9
           - solver: CryptoMinisat
             unknown_bits: 8
-            instance: 4
+            instance: 10
 
           - solver: CryptoMinisat
             unknown_bits: 8
-            instance: 5
+            instance: 11
           - solver: CryptoMinisat
             unknown_bits: 8
-            instance: 6
+            instance: 12
 
     steps:
       - name: Checkout repository
