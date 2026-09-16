@@ -221,7 +221,7 @@ def test_kpa454_with_ad_last():
         for b  in range(8):
             key_bits.append((byte >> b) & 1)
     assert len(key_bits) == 128
-    known_key_bits = 112
+    known_key_bits = 108
     for i in range(known_key_bits):
         if key_bits[i] == 1:
             builder.cnf.append([key[i]])
