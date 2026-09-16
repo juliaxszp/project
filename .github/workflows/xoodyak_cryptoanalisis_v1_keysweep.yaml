@@ -1,0 +1,89 @@
+name: Xoodyak SAT cryptanalysis
+
+on:
+  workflow_dispatch:
+
+jobs:
+  cryptoanalysis:
+    name: ${{ matrix.solver }}-${{ matrix.unknown_bits }}bit-instance${{ matrix.instance }}
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 300
+
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+
+      matrix:
+        include:
+          - solver: Kissat404
+            unknown_bits: 8
+            instance: 1
+          - solver: Kissat404
+            unknown_bits: 8
+            instance: 2
+          - solver: Kissat404
+            unknown_bits: 8
+            instance: 3
+          - solver: Kissat404
+            unknown_bits: 8
+            instance: 4
+
+          - solver: Kissat404
+            unknown_bits: 8
+            instance: 5
+          - solver: Kissat404
+            unknown_bits: 8
+            instance: 6
+
+
+          - solver: CryptoMinisat
+            unknown_bits: 8
+            instance: 1
+          - solver: CryptoMinisat
+            unknown_bits: 8
+            instance: 2
+          - solver: CryptoMinisat
+            unknown_bits: 8
+            instance: 3
+          - solver: CryptoMinisat
+            unknown_bits: 8
+            instance: 4
+
+          - solver: CryptoMinisat
+            unknown_bits: 8
+            instance: 5
+          - solver: CryptoMinisat
+            unknown_bits: 8
+            instance: 6
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run cryptanalysis
+        run: |
+          python -m src.cryptoanalisis_v1_keysweep \
+            --solver "${{ matrix.solver }}" \
+            --unknown-key-bits "${{ matrix.unknown_bits }}" \
+            --instance "${{ matrix.instance }}"
+
+      - name: Upload result
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: result-${{ matrix.solver }}-${{ matrix.unknown_bits }}-${{ matrix.instance }}
+          path: wyniki_${{ matrix.solver }}_${{ matrix.unknown_bits }}_${{ matrix.instance }}.json
+          if-no-files-found: warn
+          retention-days: 30

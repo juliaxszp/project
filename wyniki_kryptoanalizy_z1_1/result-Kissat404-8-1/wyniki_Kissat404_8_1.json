@@ -1,0 +1,14 @@
+{
+    "instancja": 1,
+    "solver_name": "Kissat404",
+    "liczba_nieznanych_bitow": 8,
+    "rezultat": "SAT",
+    "poprawny_klucz": true,
+    "czas": 2.347810148999997,
+    "konflikty": null,
+    "decyzje": null,
+    "propagacje": null,
+    "pamiec": 136.2265625,
+    "zmienne": 90624,
+    "klauzule": 359416
+}
