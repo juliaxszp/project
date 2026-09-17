@@ -12,6 +12,7 @@ UNKNOWN_COUNTS = [1, 2, 4, 8, 16, 20]
 RANDOM_TRIALS = 3
 RANDOM_SEED_BASE = 20260916
 KAT_NAMES = ["count1", "count545", "count1089"]
+UNIQUENESS_UNKNOWN_COUNT = 16
 
 def get_results_file(position_mode):
     return PROJECT_DIR / f"gift_cofb_analysis_results_{position_mode}.csv"
@@ -122,7 +123,6 @@ def recover_key_gift_cofb(true_key, unknown_positions, nonce, associated_data, m
     constrain_sat_bits_to_bytes(builder, tag_bits, known_tag)
 
     build_time = perf_counter() - build_start
-
     number_of_variables = builder.idp.top
     number_of_clauses = len(builder.cnf.clauses)
 
@@ -373,6 +373,78 @@ def random_result_exists(kat_name, unknown_count, trial):
 
     return False
 
+def save_uniqueness_result(case_name, kat_name, position_mode, trial, seed, unknown_count, unknown_positions, result, correct):
+    results_file = get_results_file("unique")
+    file_exists = results_file.exists()
+
+    with open(results_file, "a", newline="") as file:
+        writer = csv.writer(file)
+
+        if not file_exists:
+            writer.writerow([
+                "case",
+                "kat",
+                "position_mode",
+                "trial",
+                "seed",
+                "unknown_bits",
+                "known_bits",
+                "unknown_positions",
+                "build_time",
+                "solve_time",
+                "uniqueness_time",
+                "total_time",
+                "correct",
+                "unique",
+                "recovered_key",
+                "variables",
+                "clauses"
+            ])
+
+        recovered_key = result["recovered_key"]
+
+        if recovered_key is None:
+            recovered_key_hex = ""
+        else:
+            recovered_key_hex = recovered_key.hex().upper()
+
+        positions_text = ";".join(str(position) for position in unknown_positions)
+
+        writer.writerow([
+            case_name,
+            kat_name,
+            position_mode,
+            trial,
+            seed,
+            unknown_count,
+            128 - unknown_count,
+            positions_text,
+            result["build_time"],
+            result["solve_time"],
+            result["uniqueness_time"],
+            result["total_time"],
+            correct,
+            result["unique"],
+            recovered_key_hex,
+            result["variables"],
+            result["clauses"]
+        ])
+
+def uniqueness_result_exists(case_name):
+    results_file = get_results_file("unique")
+
+    if not results_file.exists():
+        return False
+
+    with open(results_file, "r", newline="") as file:
+        reader = csv.DictReader(file)
+
+        for row in reader:
+            if row["case"] == case_name:
+                return True
+
+    return False
+
 def run_position_analysis(kat_name, position_mode):
     case = get_kat_case(kat_name)
     results_file = get_results_file(position_mode)
@@ -391,12 +463,7 @@ def run_position_analysis(kat_name, position_mode):
         unknown_positions = get_unknown_positions(unknown_count, position_mode)
 
         print()
-        print(
-            f"Running {unknown_count} unknown bits "
-            f"({128 - unknown_count} known), "
-            f"mode={position_mode}...",
-            flush=True
-        )
+        print(f"Running {unknown_count} unknown bits ({128 - unknown_count} known), mode={position_mode}...", flush=True)
 
         try:
             result = recover_key_gift_cofb(
@@ -432,14 +499,7 @@ def run_position_analysis(kat_name, position_mode):
             flush=True
         )
 
-        save_position_result(
-            kat_name,
-            position_mode,
-            unknown_count,
-            unknown_positions,
-            result,
-            correct
-        )
+        save_position_result(kat_name, position_mode, unknown_count, unknown_positions, result, correct)
 
         if recovered_key is None:
             print()
@@ -463,7 +523,6 @@ def run_random_analysis(kat_name):
     print("Results file:", results_file)
     print("=====================================================")
     print()
-
     print("UNKNOWN | TRIAL | KNOWN | BUILD | SOLVE | TOTAL | CORRECT")
     print("------------------------------------------------------------")
 
@@ -481,25 +540,11 @@ def run_random_analysis(kat_name):
                 continue
 
             seed = get_random_seed(unknown_count, trial)
-            unknown_positions = get_unknown_positions(
-                unknown_count,
-                "random",
-                seed
-            )
+            unknown_positions = get_unknown_positions(unknown_count, "random", seed)
 
             print()
-            print(
-                f"Running {unknown_count} random unknown bits, "
-                f"trial {trial}/{RANDOM_TRIALS}, "
-                f"seed={seed}...",
-                flush=True
-            )
-
-            print(
-                "Positions:",
-                unknown_positions,
-                flush=True
-            )
+            print(f"Running {unknown_count} random unknown bits, trial {trial}/{RANDOM_TRIALS}, seed={seed}...", flush=True)
+            print("Positions:", unknown_positions, flush=True)
 
             try:
                 result = recover_key_gift_cofb(
@@ -537,27 +582,13 @@ def run_random_analysis(kat_name):
                 flush=True
             )
 
-            save_random_result(
-                kat_name,
-                trial,
-                seed,
-                unknown_count,
-                unknown_positions,
-                result,
-                correct
-            )
+            save_random_result(kat_name, trial, seed, unknown_count, unknown_positions, result, correct)
 
             if recovered_key is None:
                 print()
                 print("No satisfying key was found.")
                 print("Stopping this KAT.")
                 return False
-
-            if not correct:
-                print()
-                print("Solver found a different compatible key.")
-                print("The result was saved.")
-                print("Analysis will continue.")
 
     print()
     print("Finished random analysis for:", kat_name)
@@ -586,26 +617,148 @@ def run_all_analysis(position_mode):
     print("ALL ANALYSES FINISHED")
     print("=====================================================")
 
+def get_uniqueness_cases():
+    cases = []
+
+    for kat_name in KAT_NAMES:
+        cases.append({
+            "case_name": f"{kat_name}_last_{UNIQUENESS_UNKNOWN_COUNT}",
+            "kat_name": kat_name,
+            "position_mode": "last",
+            "trial": 0,
+            "seed": 0
+        })
+
+        cases.append({
+            "case_name": f"{kat_name}_first_{UNIQUENESS_UNKNOWN_COUNT}",
+            "kat_name": kat_name,
+            "position_mode": "first",
+            "trial": 0,
+            "seed": 0
+        })
+
+        for trial in range(1, RANDOM_TRIALS + 1):
+            cases.append({
+                "case_name": f"{kat_name}_random_{UNIQUENESS_UNKNOWN_COUNT}_trial{trial}",
+                "kat_name": kat_name,
+                "position_mode": "random",
+                "trial": trial,
+                "seed": get_random_seed(UNIQUENESS_UNKNOWN_COUNT, trial)
+            })
+
+    return cases
+
+def run_uniqueness_analysis():
+    uniqueness_cases = get_uniqueness_cases()
+    results_file = get_results_file("unique")
+
+    print()
+    print("=====================================================")
+    print("GIFT-COFB FULL UNIQUENESS ANALYSIS")
+    print("Unknown bits:", UNIQUENESS_UNKNOWN_COUNT)
+    print("KATs:", KAT_NAMES)
+    print("Modes: LAST, FIRST, RANDOM trial 1-3")
+    print("Total cases:", len(uniqueness_cases))
+    print("Results file:", results_file)
+    print("=====================================================")
+
+    for case_number, uniqueness_case in enumerate(uniqueness_cases, start=1):
+        case_name = uniqueness_case["case_name"]
+        kat_name = uniqueness_case["kat_name"]
+        position_mode = uniqueness_case["position_mode"]
+        trial = uniqueness_case["trial"]
+        seed = uniqueness_case["seed"]
+
+        if uniqueness_result_exists(case_name):
+            print()
+            print(f"[{case_number}/{len(uniqueness_cases)}] {case_name} - ALREADY COMPLETED")
+            continue
+
+        case = get_kat_case(kat_name)
+
+        if position_mode == "random":
+            unknown_positions = get_unknown_positions(UNIQUENESS_UNKNOWN_COUNT, position_mode, seed)
+        else:
+            unknown_positions = get_unknown_positions(UNIQUENESS_UNKNOWN_COUNT, position_mode)
+
+        print()
+        print("-----------------------------------------------------")
+        print(f"[{case_number}/{len(uniqueness_cases)}]")
+        print("Case:", case_name)
+        print("KAT:", kat_name)
+        print("Mode:", position_mode)
+
+        if position_mode == "random":
+            print("Trial:", trial)
+            print("Seed:", seed)
+
+        print("Unknown positions:", unknown_positions)
+        print("Recovering key and checking uniqueness...")
+        print("-----------------------------------------------------", flush=True)
+
+        try:
+            result = recover_key_gift_cofb(
+                true_key=case["true_key"],
+                unknown_positions=unknown_positions,
+                nonce=case["nonce"],
+                associated_data=case["associated_data"],
+                message=case["message"],
+                known_ciphertext=case["known_ciphertext"],
+                known_tag=case["known_tag"],
+                check_unique=True
+            )
+
+        except Exception as error:
+            if "keyboard interrupt" in str(error).lower():
+                print()
+                print("Uniqueness analysis stopped by user.")
+                print("All completed results are already saved in:")
+                print(results_file)
+                return
+
+            raise
+
+        recovered_key = result["recovered_key"]
+        correct = recovered_key == case["true_key"]
+
+        print()
+        print("Recovered key:", recovered_key.hex().upper() if recovered_key is not None else "NONE")
+        print("Correct key:", correct)
+        print("Unique key:", result["unique"])
+        print("Build time:", f'{result["build_time"]:.2f} s')
+        print("Solve time:", f'{result["solve_time"]:.2f} s')
+        print("Uniqueness time:", f'{result["uniqueness_time"]:.2f} s')
+        print("Total time:", f'{result["total_time"]:.2f} s')
+
+        save_uniqueness_result(
+            case_name,
+            kat_name,
+            position_mode,
+            trial,
+            seed,
+            UNIQUENESS_UNKNOWN_COUNT,
+            unknown_positions,
+            result,
+            correct
+        )
+
+    print()
+    print("=====================================================")
+    print("ALL UNIQUENESS ANALYSES FINISHED")
+    print("=====================================================")
+
 def main():
+    if len(sys.argv) == 2 and sys.argv[1] == "uniqueness":
+        run_uniqueness_analysis()
+        return
+
     if len(sys.argv) < 3:
         print("Usage:")
         print("python3 -m src.gift_cofb_analysis count1 random")
         print("python3 -m src.gift_cofb_analysis count545 random")
         print("python3 -m src.gift_cofb_analysis count1089 random")
-        print()
-        print("Run all KATs automatically:")
         print("python3 -m src.gift_cofb_analysis all random")
-        print()
-        print("Position modes:")
-        print("first")
-        print("last")
-        print("random")
-        print()
-        print("Unknown counts:")
-        print(UNKNOWN_COUNTS)
-        print()
-        print("Random trials:")
-        print(RANDOM_TRIALS)
+        print("python3 -m src.gift_cofb_analysis uniqueness")
         return
 
     kat_name = sys.argv[1]
