@@ -2,7 +2,7 @@ from pysat.solvers import Kissat404
 from src.full_photon import *
 from tests.test_photon import hex_to_sat 
 
-def test_kpa265_no_ad_last():
+def kpa265_no_ad_last():
     builder = BasicFunctions()  
     nonce = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F", "nonce")
     A = []
@@ -21,7 +21,7 @@ def test_kpa265_no_ad_last():
         for b in range(8):
             key_bits.append((byte >> b) & 1)
     assert len(key_bits) == 128
-    known_key_bits = 114
+    known_key_bits = 120
     for i in range(known_key_bits):
         if key_bits[i] == 1:
             builder.cnf.append([key[i]])
@@ -66,7 +66,7 @@ def test_kpa265_no_ad_last():
 
         assert recovered_bits[i] == key_bits[i]
 
-def test_kpa265_no_ad_first():
+def kpa265_no_ad_first():
     builder = BasicFunctions()  
     nonce = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F", "nonce")
     A = []
@@ -132,7 +132,7 @@ def test_kpa265_no_ad_first():
         assert recovered_bits[i] == key_bits[i]
 
 
-def test_kpa265_no_ad_random():
+def kpa265_no_ad_random():
     builder = BasicFunctions()  
     nonce = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F", "nonce")
     A = []
@@ -202,7 +202,7 @@ def test_kpa265_no_ad_random():
 
         assert recovered_bits[i] == key_bits[i]
 
-def test_kpa454_with_ad_last():
+def kpa454_with_ad_last():
     builder = BasicFunctions()
     nonce = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F", "nonce")
     A = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F1011121314151617", "AD")
@@ -267,7 +267,7 @@ def test_kpa454_with_ad_last():
     
         assert recovered_bits[i] == key_bits[i]
 
-def test_kpa454_with_ad_first():
+def kpa454_with_ad_first():
     builder = BasicFunctions()
     nonce = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F", "nonce")
     A = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F1011121314151617", "AD")
@@ -286,7 +286,7 @@ def test_kpa454_with_ad_first():
         for b  in range(8):
             key_bits.append((byte >> b) & 1)
     assert len(key_bits) == 128
-    unknown_key_bits = 16
+    unknown_key_bits = 20
     for i in range(unknown_key_bits, 128):
         if key_bits[i] == 1:
             builder.cnf.append([key[i]])
@@ -332,7 +332,7 @@ def test_kpa454_with_ad_first():
     
         assert recovered_bits[i] == key_bits[i]
 
-def test_kpa454_with_ad_random():
+def kpa454_with_ad_random():
     builder = BasicFunctions()
     nonce = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F", "nonce")
     A = hex_to_sat(builder, "000102030405060708090A0B0C0D0E0F1011121314151617", "AD")
@@ -352,7 +352,7 @@ def test_kpa454_with_ad_random():
             key_bits.append((byte >> b) & 1)
     assert len(key_bits) == 128
     import random
-    unknown_key_bits = 1
+    unknown_key_bits = 16
     unknown_positions = set(random.sample(range(128), unknown_key_bits))
     print("nieznane pozycje:", sorted(unknown_positions))
     for i in range(128):
@@ -401,3 +401,6 @@ def test_kpa454_with_ad_random():
             f"odzyskany={recovered_bits[i]}")
     
         assert recovered_bits[i] == key_bits[i]
+
+if __name__ == "__main__":
+    kpa454_with_ad_random()
