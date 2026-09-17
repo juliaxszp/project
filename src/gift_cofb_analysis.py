@@ -1,4 +1,5 @@
 import csv
+import random
 import sys
 from pathlib import Path
 from time import perf_counter
@@ -6,7 +7,14 @@ from pysat.solvers import Kissat404
 from .basics import BasicFunctions
 from .gift_cofb import gift_cofb_encrypt
 
-RESULTS_FILE = Path(__file__).resolve().parent.parent / "gift_cofb_analysis_results.csv"
+PROJECT_DIR = Path(__file__).resolve().parent.parent
+UNKNOWN_COUNTS = [1, 2, 4, 8, 16, 20]
+RANDOM_TRIALS = 3
+RANDOM_SEED_BASE = 20260916
+KAT_NAMES = ["count1", "count545", "count1089"]
+
+def get_results_file(position_mode):
+    return PROJECT_DIR / f"gift_cofb_analysis_results_{position_mode}.csv"
 
 def bytes_to_fixed_sat_bits(builder, data, prefix):
     bits = []
@@ -156,7 +164,6 @@ def recover_key_gift_cofb(true_key, unknown_positions, nonce, associated_data, m
                 blocking_clause.append(var)
 
         second_clauses = builder.cnf.clauses + [blocking_clause]
-
         uniqueness_start = perf_counter()
 
         with Kissat404(bootstrap_with=second_clauses) as second_solver:
@@ -226,17 +233,39 @@ def get_kat_case(kat_name):
 
     raise ValueError("Unknown KAT. Use: count1, count545 or count1089")
 
-def save_result(kat_name, unknown_count, result, correct):
-    file_exists = RESULTS_FILE.exists()
+def get_random_seed(unknown_count, trial):
+    return RANDOM_SEED_BASE + unknown_count * 100 + trial
 
-    with open(RESULTS_FILE, "a", newline="") as file:
+def get_unknown_positions(unknown_count, position_mode, seed=None):
+    if position_mode == "first":
+        return list(range(0, unknown_count))
+
+    if position_mode == "last":
+        return list(range(128 - unknown_count, 128))
+
+    if position_mode == "random":
+        if seed is None:
+            raise ValueError("Random mode requires a seed")
+
+        rng = random.Random(seed)
+        return sorted(rng.sample(range(128), unknown_count))
+
+    raise ValueError("Unknown position mode. Use: first, last or random")
+
+def save_position_result(kat_name, position_mode, unknown_count, unknown_positions, result, correct):
+    results_file = get_results_file(position_mode)
+    file_exists = results_file.exists()
+
+    with open(results_file, "a", newline="") as file:
         writer = csv.writer(file)
 
         if not file_exists:
             writer.writerow([
                 "kat",
+                "position_mode",
                 "unknown_bits",
                 "known_bits",
+                "unknown_positions",
                 "build_time",
                 "solve_time",
                 "total_time",
@@ -253,10 +282,14 @@ def save_result(kat_name, unknown_count, result, correct):
         else:
             recovered_key_hex = recovered_key.hex().upper()
 
+        positions_text = ";".join(str(position) for position in unknown_positions)
+
         writer.writerow([
             kat_name,
+            position_mode,
             unknown_count,
             128 - unknown_count,
+            positions_text,
             result["build_time"],
             result["solve_time"],
             result["total_time"],
@@ -266,24 +299,102 @@ def save_result(kat_name, unknown_count, result, correct):
             result["clauses"]
         ])
 
-def run_progressive_analysis(kat_name, start_unknown=1, end_unknown=128):
+def save_random_result(kat_name, trial, seed, unknown_count, unknown_positions, result, correct):
+    results_file = get_results_file("random")
+    file_exists = results_file.exists()
+
+    with open(results_file, "a", newline="") as file:
+        writer = csv.writer(file)
+
+        if not file_exists:
+            writer.writerow([
+                "kat",
+                "position_mode",
+                "trial",
+                "seed",
+                "unknown_bits",
+                "known_bits",
+                "unknown_positions",
+                "build_time",
+                "solve_time",
+                "total_time",
+                "correct",
+                "recovered_key",
+                "variables",
+                "clauses"
+            ])
+
+        recovered_key = result["recovered_key"]
+
+        if recovered_key is None:
+            recovered_key_hex = ""
+        else:
+            recovered_key_hex = recovered_key.hex().upper()
+
+        positions_text = ";".join(str(position) for position in unknown_positions)
+
+        writer.writerow([
+            kat_name,
+            "random",
+            trial,
+            seed,
+            unknown_count,
+            128 - unknown_count,
+            positions_text,
+            result["build_time"],
+            result["solve_time"],
+            result["total_time"],
+            correct,
+            recovered_key_hex,
+            result["variables"],
+            result["clauses"]
+        ])
+
+def random_result_exists(kat_name, unknown_count, trial):
+    results_file = get_results_file("random")
+
+    if not results_file.exists():
+        return False
+
+    with open(results_file, "r", newline="") as file:
+        reader = csv.DictReader(file)
+
+        for row in reader:
+            if row["kat"] != kat_name:
+                continue
+
+            if int(row["unknown_bits"]) != unknown_count:
+                continue
+
+            if int(row["trial"]) != trial:
+                continue
+
+            return True
+
+    return False
+
+def run_position_analysis(kat_name, position_mode):
     case = get_kat_case(kat_name)
+    results_file = get_results_file(position_mode)
 
     print()
-    print("GIFT-COFB KEY RECOVERY ANALYSIS")
+    print("GIFT-COFB KEY POSITION ANALYSIS")
     print("KAT:", kat_name)
-    print("Results file:", RESULTS_FILE)
+    print("Position mode:", position_mode)
+    print("Unknown counts:", UNKNOWN_COUNTS)
+    print("Results file:", results_file)
     print()
     print("UNKNOWN | KNOWN | BUILD | SOLVE | TOTAL | CORRECT")
     print("-----------------------------------------------------")
 
-    for unknown_count in range(start_unknown, end_unknown + 1):
-        unknown_positions = list(range(128 - unknown_count, 128))
+    for unknown_count in UNKNOWN_COUNTS:
+        unknown_positions = get_unknown_positions(unknown_count, position_mode)
 
         print()
         print(
             f"Running {unknown_count} unknown bits "
-            f"({128 - unknown_count} known)...",
+            f"({128 - unknown_count} known), "
+            f"mode={position_mode}...",
             flush=True
         )
 
@@ -299,12 +410,14 @@ def run_progressive_analysis(kat_name, start_unknown=1, end_unknown=128):
                 check_unique=False
             )
 
-        except KeyboardInterrupt:
-            print()
-            print("Analysis stopped by user.")
-            print("All completed results are already saved in:")
-            print(RESULTS_FILE)
-            return
+        except Exception as error:
+            if "keyboard interrupt" in str(error).lower():
+                print()
+                print("Analysis stopped by user.")
+                print("Completed results are already saved.")
+                return False
+
+            raise
 
         recovered_key = result["recovered_key"]
         correct = recovered_key == case["true_key"]
@@ -313,50 +426,205 @@ def run_progressive_analysis(kat_name, start_unknown=1, end_unknown=128):
             f"{unknown_count:7} | "
             f"{128 - unknown_count:5} | "
             f"{result['build_time']:5.2f}s | "
-            f"{result['solve_time']:6.2f}s | "
-            f"{result['total_time']:6.2f}s | "
+            f"{result['solve_time']:7.2f}s | "
+            f"{result['total_time']:7.2f}s | "
             f"{correct}",
             flush=True
         )
 
-        save_result(kat_name, unknown_count, result, correct)
+        save_position_result(
+            kat_name,
+            position_mode,
+            unknown_count,
+            unknown_positions,
+            result,
+            correct
+        )
 
         if recovered_key is None:
             print()
             print("No satisfying key was found.")
-            print("This should not normally happen because the true key satisfies the constraints.")
-            print("Stopping analysis.")
-            return
-
-        if not correct:
-            print("Solver found a different compatible key.")
-            print("The result was saved and the analysis will continue.", flush=True)
+            return False
 
     print()
-    print("Finished all requested unknown-bit counts.")
+    print("Finished all selected unknown-bit counts.")
+    return True
+
+def run_random_analysis(kat_name):
+    case = get_kat_case(kat_name)
+    results_file = get_results_file("random")
+
+    print()
+    print("=====================================================")
+    print("GIFT-COFB RANDOM KEY POSITION ANALYSIS")
+    print("KAT:", kat_name)
+    print("Trials:", RANDOM_TRIALS)
+    print("Unknown counts:", UNKNOWN_COUNTS)
+    print("Results file:", results_file)
+    print("=====================================================")
+    print()
+
+    print("UNKNOWN | TRIAL | KNOWN | BUILD | SOLVE | TOTAL | CORRECT")
+    print("------------------------------------------------------------")
+
+    for unknown_count in UNKNOWN_COUNTS:
+        for trial in range(1, RANDOM_TRIALS + 1):
+            if random_result_exists(kat_name, unknown_count, trial):
+                print(
+                    f"{unknown_count:7} | "
+                    f"{trial:5} | "
+                    f"{128 - unknown_count:5} | "
+                    f"ALREADY COMPLETED",
+                    flush=True
+                )
+
+                continue
+
+            seed = get_random_seed(unknown_count, trial)
+            unknown_positions = get_unknown_positions(
+                unknown_count,
+                "random",
+                seed
+            )
+
+            print()
+            print(
+                f"Running {unknown_count} random unknown bits, "
+                f"trial {trial}/{RANDOM_TRIALS}, "
+                f"seed={seed}...",
+                flush=True
+            )
+
+            print(
+                "Positions:",
+                unknown_positions,
+                flush=True
+            )
+
+            try:
+                result = recover_key_gift_cofb(
+                    true_key=case["true_key"],
+                    unknown_positions=unknown_positions,
+                    nonce=case["nonce"],
+                    associated_data=case["associated_data"],
+                    message=case["message"],
+                    known_ciphertext=case["known_ciphertext"],
+                    known_tag=case["known_tag"],
+                    check_unique=False
+                )
+
+            except Exception as error:
+                if "keyboard interrupt" in str(error).lower():
+                    print()
+                    print("Analysis stopped by user.")
+                    print("All completed random results are already saved in:")
+                    print(results_file)
+                    return False
+
+                raise
+
+            recovered_key = result["recovered_key"]
+            correct = recovered_key == case["true_key"]
+
+            print(
+                f"{unknown_count:7} | "
+                f"{trial:5} | "
+                f"{128 - unknown_count:5} | "
+                f"{result['build_time']:5.2f}s | "
+                f"{result['solve_time']:7.2f}s | "
+                f"{result['total_time']:7.2f}s | "
+                f"{correct}",
+                flush=True
+            )
+
+            save_random_result(
+                kat_name,
+                trial,
+                seed,
+                unknown_count,
+                unknown_positions,
+                result,
+                correct
+            )
+
+            if recovered_key is None:
+                print()
+                print("No satisfying key was found.")
+                print("Stopping this KAT.")
+                return False
+
+            if not correct:
+                print()
+                print("Solver found a different compatible key.")
+                print("The result was saved.")
+                print("Analysis will continue.")
+
+    print()
+    print("Finished random analysis for:", kat_name)
+    return True
+
+def run_all_analysis(position_mode):
+    print()
+    print("GIFT-COFB FULL ANALYSIS")
+    print("Position mode:", position_mode)
+    print("KATs:", KAT_NAMES)
+    print()
+
+    for kat_name in KAT_NAMES:
+        if position_mode == "random":
+            completed = run_random_analysis(kat_name)
+        else:
+            completed = run_position_analysis(kat_name, position_mode)
+
+        if not completed:
+            print()
+            print("Full analysis stopped.")
+            return
+
+    print()
+    print("=====================================================")
+    print("ALL ANALYSES FINISHED")
+    print("=====================================================")
 
 def main():
-    if len(sys.argv) < 2:
+    if len(sys.argv) < 3:
         print("Usage:")
-        print("python3 -m src.gift_cofb_analysis count1")
-        print("python3 -m src.gift_cofb_analysis count545")
-        print("python3 -m src.gift_cofb_analysis count1089")
+        print("python3 -m src.gift_cofb_analysis count1 random")
+        print("python3 -m src.gift_cofb_analysis count545 random")
+        print("python3 -m src.gift_cofb_analysis count1089 random")
         print()
-        print("Optional range:")
-        print("python3 -m src.gift_cofb_analysis count1 1 20")
+        print("Run all KATs automatically:")
+        print("python3 -m src.gift_cofb_analysis all random")
+        print()
+        print("Position modes:")
+        print("first")
+        print("last")
+        print("random")
+        print()
+        print("Unknown counts:")
+        print(UNKNOWN_COUNTS)
+        print()
+        print("Random trials:")
+        print(RANDOM_TRIALS)
         return
 
     kat_name = sys.argv[1]
-    start_unknown = 1
-    end_unknown = 128
+    position_mode = sys.argv[2]
 
-    if len(sys.argv) >= 3:
-        start_unknown = int(sys.argv[2])
+    if position_mode not in ["first", "last", "random"]:
+        raise ValueError("Position mode must be: first, last or random")
 
-    if len(sys.argv) >= 4:
-        end_unknown = int(sys.argv[3])
+    if kat_name == "all":
+        run_all_analysis(position_mode)
+        return
 
-    run_progressive_analysis(kat_name, start_unknown, end_unknown)
+    if kat_name not in KAT_NAMES:
+        raise ValueError("KAT must be: count1, count545, count1089 or all")
+
+    if position_mode == "random":
+        run_random_analysis(kat_name)
+    else:
+        run_position_analysis(kat_name, position_mode)
 
 if __name__ == "__main__":
     main()
