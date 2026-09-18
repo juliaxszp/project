@@ -1,9 +1,12 @@
 import csv
 import random
 import sys
+from itertools import product
+from multiprocessing import get_context
 from pathlib import Path
+from queue import Empty
 from time import perf_counter
-from pysat.solvers import Kissat404
+from pysat.solvers import Kissat404, Cadical300, Glucose42, MapleChrono, Mergesat3
 from .basics import BasicFunctions
 from .gift_cofb import gift_cofb_encrypt
 
@@ -13,6 +16,28 @@ RANDOM_TRIALS = 3
 RANDOM_SEED_BASE = 20260916
 KAT_NAMES = ["count1", "count545", "count1089"]
 UNIQUENESS_UNKNOWN_COUNT = 16
+SOLVER_BENCHMARK_UNKNOWN_COUNT = 16
+SOLVER_BENCHMARK_TRIAL = 1
+SOLVER_TIMEOUT_SECONDS = 1800
+DIVIDE_KAT = "count1089"
+DIVIDE_UNKNOWN_COUNT = 20
+DIVIDE_TRIAL = 1
+DIVIDE_SPLIT_COUNTS = [2, 3, 4, 5]
+DIVIDE_MAX_WORKERS = 4
+
+SOLVERS = [
+    ("Kissat404", Kissat404),
+    ("Glucose42", Glucose42),
+    ("MapleChrono", MapleChrono)
+]
+
+SOLVER_CLASSES = {
+    "Kissat404": Kissat404,
+    "Cadical300": Cadical300,
+    "Glucose42": Glucose42,
+    "MapleChrono": MapleChrono,
+    "Mergesat3": Mergesat3
+}
 
 def get_results_file(position_mode):
     return PROJECT_DIR / f"gift_cofb_analysis_results_{position_mode}.csv"
@@ -99,10 +124,8 @@ def sat_bits_to_bytes(bits, model):
 
     return bytes(result)
 
-def recover_key_gift_cofb(true_key, unknown_positions, nonce, associated_data, message, known_ciphertext, known_tag, check_unique=True):
-    total_start = perf_counter()
+def build_key_recovery_instance(true_key, unknown_positions, nonce, associated_data, message, known_ciphertext, known_tag):
     build_start = perf_counter()
-
     builder = BasicFunctions()
 
     key_bits = key_to_sat_bits_with_unknowns(builder, true_key, unknown_positions, "recovery_key")
@@ -123,8 +146,30 @@ def recover_key_gift_cofb(true_key, unknown_positions, nonce, associated_data, m
     constrain_sat_bits_to_bytes(builder, tag_bits, known_tag)
 
     build_time = perf_counter() - build_start
-    number_of_variables = builder.idp.top
-    number_of_clauses = len(builder.cnf.clauses)
+
+    return {
+        "builder": builder,
+        "key_bits": key_bits,
+        "build_time": build_time,
+        "variables": builder.idp.top,
+        "clauses": len(builder.cnf.clauses)
+    }
+
+def recover_key_gift_cofb(true_key, unknown_positions, nonce, associated_data, message, known_ciphertext, known_tag, check_unique=True):
+    total_start = perf_counter()
+
+    instance = build_key_recovery_instance(
+        true_key,
+        unknown_positions,
+        nonce,
+        associated_data,
+        message,
+        known_ciphertext,
+        known_tag
+    )
+
+    builder = instance["builder"]
+    key_bits = instance["key_bits"]
 
     solve_start = perf_counter()
 
@@ -137,13 +182,13 @@ def recover_key_gift_cofb(true_key, unknown_positions, nonce, associated_data, m
 
             return {
                 "recovered_key": None,
-                "build_time": build_time,
+                "build_time": instance["build_time"],
                 "solve_time": solve_time,
                 "uniqueness_time": 0.0,
                 "total_time": total_time,
                 "unique": False,
-                "variables": number_of_variables,
-                "clauses": number_of_clauses
+                "variables": instance["variables"],
+                "clauses": instance["clauses"]
             }
 
         model = solver.get_model()
@@ -176,13 +221,13 @@ def recover_key_gift_cofb(true_key, unknown_positions, nonce, associated_data, m
 
     return {
         "recovered_key": recovered_key,
-        "build_time": build_time,
+        "build_time": instance["build_time"],
         "solve_time": solve_time,
         "uniqueness_time": uniqueness_time,
         "total_time": total_time,
         "unique": unique,
-        "variables": number_of_variables,
-        "clauses": number_of_clauses
+        "variables": instance["variables"],
+        "clauses": instance["clauses"]
     }
 
 def get_kat_case(kat_name):
@@ -276,12 +321,7 @@ def save_position_result(kat_name, position_mode, unknown_count, unknown_positio
             ])
 
         recovered_key = result["recovered_key"]
-
-        if recovered_key is None:
-            recovered_key_hex = ""
-        else:
-            recovered_key_hex = recovered_key.hex().upper()
-
+        recovered_key_hex = "" if recovered_key is None else recovered_key.hex().upper()
         positions_text = ";".join(str(position) for position in unknown_positions)
 
         writer.writerow([
@@ -325,12 +365,7 @@ def save_random_result(kat_name, trial, seed, unknown_count, unknown_positions, 
             ])
 
         recovered_key = result["recovered_key"]
-
-        if recovered_key is None:
-            recovered_key_hex = ""
-        else:
-            recovered_key_hex = recovered_key.hex().upper()
-
+        recovered_key_hex = "" if recovered_key is None else recovered_key.hex().upper()
         positions_text = ";".join(str(position) for position in unknown_positions)
 
         writer.writerow([
@@ -360,16 +395,8 @@ def random_result_exists(kat_name, unknown_count, trial):
         reader = csv.DictReader(file)
 
         for row in reader:
-            if row["kat"] != kat_name:
-                continue
-
-            if int(row["unknown_bits"]) != unknown_count:
-                continue
-
-            if int(row["trial"]) != trial:
-                continue
-
-            return True
+            if row["kat"] == kat_name and int(row["unknown_bits"]) == unknown_count and int(row["trial"]) == trial:
+                return True
 
     return False
 
@@ -402,12 +429,7 @@ def save_uniqueness_result(case_name, kat_name, position_mode, trial, seed, unkn
             ])
 
         recovered_key = result["recovered_key"]
-
-        if recovered_key is None:
-            recovered_key_hex = ""
-        else:
-            recovered_key_hex = recovered_key.hex().upper()
-
+        recovered_key_hex = "" if recovered_key is None else recovered_key.hex().upper()
         positions_text = ";".join(str(position) for position in unknown_positions)
 
         writer.writerow([
@@ -445,27 +467,716 @@ def uniqueness_result_exists(case_name):
 
     return False
 
-def run_position_analysis(kat_name, position_mode):
+def save_solver_result(kat_name, position_mode, trial, seed, unknown_count, unknown_positions, solver_name, build_time, solve_time, satisfiable, correct, recovered_key, variables, clauses, status, error_text):
+    results_file = get_results_file("solvers")
+    file_exists = results_file.exists()
+
+    with open(results_file, "a", newline="") as file:
+        writer = csv.writer(file)
+
+        if not file_exists:
+            writer.writerow([
+                "kat",
+                "position_mode",
+                "trial",
+                "seed",
+                "unknown_bits",
+                "known_bits",
+                "unknown_positions",
+                "solver",
+                "build_time",
+                "solve_time",
+                "satisfiable",
+                "correct",
+                "recovered_key",
+                "variables",
+                "clauses",
+                "status",
+                "error"
+            ])
+
+        recovered_key_hex = "" if recovered_key is None else recovered_key.hex().upper()
+        positions_text = ";".join(str(position) for position in unknown_positions)
+
+        writer.writerow([
+            kat_name,
+            position_mode,
+            trial,
+            seed,
+            unknown_count,
+            128 - unknown_count,
+            positions_text,
+            solver_name,
+            build_time,
+            solve_time,
+            satisfiable,
+            correct,
+            recovered_key_hex,
+            variables,
+            clauses,
+            status,
+            error_text
+        ])
+
+def solver_result_exists(kat_name, unknown_count, trial, solver_name):
+    results_file = get_results_file("solvers")
+
+    if not results_file.exists():
+        return False
+
+    with open(results_file, "r", newline="") as file:
+        reader = csv.DictReader(file)
+
+        for row in reader:
+            if row["kat"] != kat_name:
+                continue
+
+            if int(row["unknown_bits"]) != unknown_count:
+                continue
+
+            if int(row["trial"]) != trial:
+                continue
+
+            if row["solver"] != solver_name:
+                continue
+
+            return True
+
+    return False
+
+def solver_worker(solver_name, clauses, key_bits, true_key, result_queue):
+    solver_class = SOLVER_CLASSES[solver_name]
+    solve_start = perf_counter()
+
+    try:
+        with solver_class(bootstrap_with=clauses) as solver:
+            satisfiable = solver.solve()
+
+            if satisfiable:
+                model = solver.get_model()
+            else:
+                model = None
+
+        solve_time = perf_counter() - solve_start
+
+        if satisfiable:
+            recovered_key = sat_bits_to_bytes(key_bits, model)
+            correct = recovered_key == true_key
+        else:
+            recovered_key = None
+            correct = False
+
+        result_queue.put({
+            "status": "OK",
+            "solve_time": solve_time,
+            "satisfiable": satisfiable,
+            "correct": correct,
+            "recovered_key": recovered_key,
+            "error": ""
+        })
+
+    except Exception as error:
+        result_queue.put({
+            "status": "ERROR",
+            "solve_time": perf_counter() - solve_start,
+            "satisfiable": False,
+            "correct": False,
+            "recovered_key": None,
+            "error": str(error)
+        })
+
+def run_solver_with_timeout(solver_name, clauses, key_bits, true_key, timeout_seconds):
+    context = get_context("fork")
+    result_queue = context.Queue()
+
+    process = context.Process(
+        target=solver_worker,
+        args=(
+            solver_name,
+            clauses,
+            key_bits,
+            true_key,
+            result_queue
+        )
+    )
+
+    wall_start = perf_counter()
+    process.start()
+
+    try:
+        process.join(timeout_seconds)
+
+    except KeyboardInterrupt:
+        if process.is_alive():
+            process.terminate()
+            process.join()
+
+        raise
+
+    if process.is_alive():
+        process.terminate()
+        process.join()
+
+        return {
+            "status": "TIMEOUT",
+            "solve_time": perf_counter() - wall_start,
+            "satisfiable": False,
+            "correct": False,
+            "recovered_key": None,
+            "error": f"Exceeded timeout of {timeout_seconds} seconds"
+        }
+
+    try:
+        result = result_queue.get(timeout=5)
+
+    except Empty:
+        return {
+            "status": "ERROR",
+            "solve_time": perf_counter() - wall_start,
+            "satisfiable": False,
+            "correct": False,
+            "recovered_key": None,
+            "error": f"Solver process exited with code {process.exitcode} without returning a result"
+        }
+
+    return result
+
+def get_random_baseline_solve_time(kat_name, unknown_count, trial):
+    results_file = get_results_file("random")
+
+    if not results_file.exists():
+        return None
+
+    with open(results_file, "r", newline="") as file:
+        reader = csv.DictReader(file)
+
+        for row in reader:
+            if row["kat"] != kat_name:
+                continue
+
+            if int(row["unknown_bits"]) != unknown_count:
+                continue
+
+            if int(row["trial"]) != trial:
+                continue
+
+            return float(row["solve_time"])
+
+    return None
+
+def save_divide_row(row_type, experiment, kat_name, trial, seed, unknown_count, split_bits, split_positions, max_workers, branch_id, assignment, status, satisfiable, correct, recovered_key, solve_time, experiment_wall_time, baseline_solve_time, variables, clauses):
+    results_file = get_results_file("divide")
+    file_exists = results_file.exists()
+
+    with open(results_file, "a", newline="") as file:
+        writer = csv.writer(file)
+
+        if not file_exists:
+            writer.writerow([
+                "row_type",
+                "experiment",
+                "kat",
+                "position_mode",
+                "trial",
+                "seed",
+                "unknown_bits",
+                "known_bits",
+                "split_bits",
+                "split_positions",
+                "max_workers",
+                "branch_id",
+                "assignment",
+                "status",
+                "satisfiable",
+                "correct",
+                "recovered_key",
+                "solve_time",
+                "experiment_wall_time",
+                "baseline_solve_time",
+                "variables",
+                "clauses"
+            ])
+
+        split_positions_text = ";".join(str(position) for position in split_positions)
+        assignment_text = "".join(str(bit) for bit in assignment) if assignment is not None else ""
+        recovered_key_hex = "" if recovered_key is None else recovered_key.hex().upper()
+        baseline_text = "" if baseline_solve_time is None else baseline_solve_time
+
+        writer.writerow([
+            row_type,
+            experiment,
+            kat_name,
+            "random",
+            trial,
+            seed,
+            unknown_count,
+            128 - unknown_count,
+            split_bits,
+            split_positions_text,
+            max_workers,
+            branch_id,
+            assignment_text,
+            status,
+            satisfiable,
+            correct,
+            recovered_key_hex,
+            solve_time,
+            experiment_wall_time,
+            baseline_text,
+            variables,
+            clauses
+        ])
+
+def get_divide_completed_branches(experiment):
+    results_file = get_results_file("divide")
+    completed = set()
+
+    if not results_file.exists():
+        return completed
+
+    with open(results_file, "r", newline="") as file:
+        reader = csv.DictReader(file)
+
+        for row in reader:
+            if row["experiment"] != experiment:
+                continue
+
+            if row["row_type"] != "branch":
+                continue
+
+            if row["status"] not in ["SAT", "UNSAT"]:
+                continue
+
+            completed.add(row["branch_id"])
+
+    return completed
+
+def divide_summary_exists(experiment):
+    results_file = get_results_file("divide")
+
+    if not results_file.exists():
+        return False
+
+    with open(results_file, "r", newline="") as file:
+        reader = csv.DictReader(file)
+
+        for row in reader:
+            if row["experiment"] != experiment:
+                continue
+
+            if row["row_type"] != "summary":
+                continue
+
+            if row["status"] in ["SAT_FOUND", "UNSAT_ALL"]:
+                return True
+
+    return False
+
+def divide_branch_worker(branch_id, clauses, key_bits, true_key, result_queue):
+    solve_start = perf_counter()
+
+    try:
+        with Kissat404(bootstrap_with=clauses) as solver:
+            satisfiable = solver.solve()
+
+            if satisfiable:
+                model = solver.get_model()
+            else:
+                model = None
+
+        solve_time = perf_counter() - solve_start
+
+        if satisfiable:
+            recovered_key = sat_bits_to_bytes(key_bits, model)
+            correct = recovered_key == true_key
+            status = "SAT"
+        else:
+            recovered_key = None
+            correct = False
+            status = "UNSAT"
+
+        result_queue.put({
+            "branch_id": branch_id,
+            "status": status,
+            "satisfiable": satisfiable,
+            "correct": correct,
+            "recovered_key": recovered_key,
+            "solve_time": solve_time,
+            "error": ""
+        })
+
+    except Exception as error:
+        result_queue.put({
+            "branch_id": branch_id,
+            "status": "ERROR",
+            "satisfiable": False,
+            "correct": False,
+            "recovered_key": None,
+            "solve_time": perf_counter() - solve_start,
+            "error": str(error)
+        })
+
+def terminate_processes(active_processes):
+    for process in active_processes.values():
+        if process.is_alive():
+            process.terminate()
+
+    for process in active_processes.values():
+        process.join()
+
+def run_divide_experiment(kat_name, unknown_count, trial, split_bits, max_workers, deadline):
+    experiment = f"{kat_name}_random{trial}_{unknown_count}_split{split_bits}"
+
+    if divide_summary_exists(experiment):
+        print()
+        print(experiment, "- ALREADY COMPLETED")
+        return True
+
     case = get_kat_case(kat_name)
-    results_file = get_results_file(position_mode)
+    seed = get_random_seed(unknown_count, trial)
+    unknown_positions = get_unknown_positions(unknown_count, "random", seed)
+    split_positions = unknown_positions[:split_bits]
+    baseline_solve_time = get_random_baseline_solve_time(kat_name, unknown_count, trial)
 
     print()
-    print("GIFT-COFB KEY POSITION ANALYSIS")
+    print("=====================================================")
+    print("DIVIDE-AND-CONQUER EXPERIMENT")
+    print("Experiment:", experiment)
     print("KAT:", kat_name)
-    print("Position mode:", position_mode)
-    print("Unknown counts:", UNKNOWN_COUNTS)
-    print("Results file:", results_file)
+    print("Unknown bits:", unknown_count)
+    print("Trial:", trial)
+    print("Seed:", seed)
+    print("Split bits:", split_bits)
+    print("Branches:", 2 ** split_bits)
+    print("Split positions:", split_positions)
+    print("Maximum parallel workers:", max_workers)
+
+    if baseline_solve_time is not None:
+        print("Single Kissat baseline:", f"{baseline_solve_time:.2f} s")
+
+    print("=====================================================")
     print()
-    print("UNKNOWN | KNOWN | BUILD | SOLVE | TOTAL | CORRECT")
-    print("-----------------------------------------------------")
+    print("Building base CNF...", flush=True)
+
+    instance = build_key_recovery_instance(
+        case["true_key"],
+        unknown_positions,
+        case["nonce"],
+        case["associated_data"],
+        case["message"],
+        case["known_ciphertext"],
+        case["known_tag"]
+    )
+
+    builder = instance["builder"]
+    key_bits = instance["key_bits"]
+    completed_branches = get_divide_completed_branches(experiment)
+    assignments = list(product([0, 1], repeat=split_bits))
+    pending = []
+
+    for assignment in assignments:
+        branch_id = "".join(str(bit) for bit in assignment)
+
+        if branch_id in completed_branches:
+            continue
+
+        pending.append(assignment)
+
+    print("Build time:", f'{instance["build_time"]:.2f} s')
+    print("SAT variables:", instance["variables"])
+    print("CNF clauses:", instance["clauses"])
+    print("Already completed branches:", len(completed_branches))
+    print("Remaining branches:", len(pending))
+    print()
+
+    if len(pending) == 0:
+        print("All branches were already completed.")
+        return True
+
+    context = get_context("fork")
+    result_queue = context.Queue()
+    active_processes = {}
+    active_assignments = {}
+    experiment_start = perf_counter()
+
+    try:
+        while pending or active_processes:
+            if perf_counter() >= deadline:
+                print()
+                print("Global night limit reached.")
+                print("Stopping active branches.")
+                terminate_processes(active_processes)
+                return False
+
+            while pending and len(active_processes) < max_workers:
+                assignment = pending.pop(0)
+                branch_id = "".join(str(bit) for bit in assignment)
+                branch_units = []
+
+                for position, value in zip(split_positions, assignment):
+                    var = key_bits[position]
+                    branch_units.append([var] if value == 1 else [-var])
+
+                branch_clauses = builder.cnf.clauses + branch_units
+
+                process = context.Process(
+                    target=divide_branch_worker,
+                    args=(
+                        branch_id,
+                        branch_clauses,
+                        key_bits,
+                        case["true_key"],
+                        result_queue
+                    )
+                )
+
+                process.start()
+                active_processes[branch_id] = process
+                active_assignments[branch_id] = assignment
+
+                print(
+                    "Started branch",
+                    branch_id,
+                    "assignment",
+                    assignment,
+                    flush=True
+                )
+
+            try:
+                result = result_queue.get(timeout=1)
+
+            except Empty:
+                dead_branches = []
+
+                for branch_id, process in active_processes.items():
+                    if not process.is_alive():
+                        dead_branches.append(branch_id)
+
+                for branch_id in dead_branches:
+                    process = active_processes.pop(branch_id)
+                    process.join()
+                    active_assignments.pop(branch_id)
+
+                    print(
+                        "Branch",
+                        branch_id,
+                        "ended without a result.",
+                        flush=True
+                    )
+
+                continue
+
+            branch_id = result["branch_id"]
+            assignment = active_assignments.pop(branch_id)
+            process = active_processes.pop(branch_id)
+            process.join()
+
+            experiment_wall_time = perf_counter() - experiment_start
+
+            print()
+            print(
+                "Branch",
+                branch_id,
+                "|",
+                result["status"],
+                "|",
+                f'{result["solve_time"]:.2f}s',
+                "| correct:",
+                result["correct"],
+                flush=True
+            )
+
+            save_divide_row(
+                "branch",
+                experiment,
+                kat_name,
+                trial,
+                seed,
+                unknown_count,
+                split_bits,
+                split_positions,
+                max_workers,
+                branch_id,
+                assignment,
+                result["status"],
+                result["satisfiable"],
+                result["correct"],
+                result["recovered_key"],
+                result["solve_time"],
+                experiment_wall_time,
+                baseline_solve_time,
+                instance["variables"],
+                instance["clauses"]
+            )
+
+            if result["satisfiable"]:
+                print()
+                print("SAT branch found:", branch_id)
+                print("Correct key:", result["correct"])
+                print("Stopping all remaining branches.")
+
+                terminate_processes(active_processes)
+
+                experiment_wall_time = perf_counter() - experiment_start
+
+                save_divide_row(
+                    "summary",
+                    experiment,
+                    kat_name,
+                    trial,
+                    seed,
+                    unknown_count,
+                    split_bits,
+                    split_positions,
+                    max_workers,
+                    branch_id,
+                    assignment,
+                    "SAT_FOUND",
+                    True,
+                    result["correct"],
+                    result["recovered_key"],
+                    result["solve_time"],
+                    experiment_wall_time,
+                    baseline_solve_time,
+                    instance["variables"],
+                    instance["clauses"]
+                )
+
+                print("Experiment wall time:", f"{experiment_wall_time:.2f} s")
+
+                if baseline_solve_time is not None:
+                    speedup = baseline_solve_time / experiment_wall_time
+                    print("Speedup vs single Kissat:", f"{speedup:.2f}x")
+
+                return True
+
+        experiment_wall_time = perf_counter() - experiment_start
+
+        save_divide_row(
+            "summary",
+            experiment,
+            kat_name,
+            trial,
+            seed,
+            unknown_count,
+            split_bits,
+            split_positions,
+            max_workers,
+            "",
+            None,
+            "UNSAT_ALL",
+            False,
+            False,
+            None,
+            0.0,
+            experiment_wall_time,
+            baseline_solve_time,
+            instance["variables"],
+            instance["clauses"]
+        )
+
+        print()
+        print("All branches returned UNSAT.")
+        return True
+
+    except KeyboardInterrupt:
+        print()
+        print("Divide experiment interrupted by user.")
+        terminate_processes(active_processes)
+        print("Completed branches are already saved.")
+        return False
+
+def run_divide_night(hours):
+    night_start = perf_counter()
+    deadline = night_start + hours * 3600
+
+    print()
+    print("=====================================================")
+    print("GIFT-COFB NIGHT DIVIDE-AND-CONQUER ANALYSIS")
+    print("Maximum runtime:", hours, "hours")
+    print("KAT:", DIVIDE_KAT)
+    print("Unknown bits:", DIVIDE_UNKNOWN_COUNT)
+    print("Trial:", DIVIDE_TRIAL)
+    print("Split counts:", DIVIDE_SPLIT_COUNTS)
+    print("Parallel Kissat workers:", DIVIDE_MAX_WORKERS)
+    print("Results file:", get_results_file("divide"))
+    print("=====================================================")
+
+    for split_bits in DIVIDE_SPLIT_COUNTS:
+        if perf_counter() >= deadline:
+            print()
+            print("Global night limit reached before next experiment.")
+            break
+
+        completed = run_divide_experiment(
+            DIVIDE_KAT,
+            DIVIDE_UNKNOWN_COUNT,
+            DIVIDE_TRIAL,
+            split_bits,
+            DIVIDE_MAX_WORKERS,
+            deadline
+        )
+
+        if not completed and perf_counter() >= deadline:
+            break
+
+        if not completed:
+            print()
+            print("Current experiment was not completed.")
+            print("Run the same command later to resume.")
+            break
+
+    total_time = perf_counter() - night_start
+
+    print()
+    print("=====================================================")
+    print("NIGHT DIVIDE ANALYSIS STOPPED")
+    print("Runtime:", f"{total_time / 3600:.2f} h")
+    print("Completed results are saved in:")
+    print(get_results_file("divide"))
+    print("Run the same command to resume.")
+    print("=====================================================")
+
+def run_position_analysis(kat_name, position_mode):
+    case = get_kat_case(kat_name)
 
     for unknown_count in UNKNOWN_COUNTS:
         unknown_positions = get_unknown_positions(unknown_count, position_mode)
 
-        print()
-        print(f"Running {unknown_count} unknown bits ({128 - unknown_count} known), mode={position_mode}...", flush=True)
+        result = recover_key_gift_cofb(
+            true_key=case["true_key"],
+            unknown_positions=unknown_positions,
+            nonce=case["nonce"],
+            associated_data=case["associated_data"],
+            message=case["message"],
+            known_ciphertext=case["known_ciphertext"],
+            known_tag=case["known_tag"],
+            check_unique=False
+        )
 
-        try:
+        recovered_key = result["recovered_key"]
+        correct = recovered_key == case["true_key"]
+
+        save_position_result(
+            kat_name,
+            position_mode,
+            unknown_count,
+            unknown_positions,
+            result,
+            correct
+        )
+
+def run_random_analysis(kat_name):
+    case = get_kat_case(kat_name)
+
+    for unknown_count in UNKNOWN_COUNTS:
+        for trial in range(1, RANDOM_TRIALS + 1):
+            if random_result_exists(kat_name, unknown_count, trial):
+                continue
+
+            seed = get_random_seed(unknown_count, trial)
+            unknown_positions = get_unknown_positions(unknown_count, "random", seed)
+
             result = recover_key_gift_cofb(
                 true_key=case["true_key"],
                 unknown_positions=unknown_positions,
@@ -477,145 +1188,25 @@ def run_position_analysis(kat_name, position_mode):
                 check_unique=False
             )
 
-        except Exception as error:
-            if "keyboard interrupt" in str(error).lower():
-                print()
-                print("Analysis stopped by user.")
-                print("Completed results are already saved.")
-                return False
-
-            raise
-
-        recovered_key = result["recovered_key"]
-        correct = recovered_key == case["true_key"]
-
-        print(
-            f"{unknown_count:7} | "
-            f"{128 - unknown_count:5} | "
-            f"{result['build_time']:5.2f}s | "
-            f"{result['solve_time']:7.2f}s | "
-            f"{result['total_time']:7.2f}s | "
-            f"{correct}",
-            flush=True
-        )
-
-        save_position_result(kat_name, position_mode, unknown_count, unknown_positions, result, correct)
-
-        if recovered_key is None:
-            print()
-            print("No satisfying key was found.")
-            return False
-
-    print()
-    print("Finished all selected unknown-bit counts.")
-    return True
-
-def run_random_analysis(kat_name):
-    case = get_kat_case(kat_name)
-    results_file = get_results_file("random")
-
-    print()
-    print("=====================================================")
-    print("GIFT-COFB RANDOM KEY POSITION ANALYSIS")
-    print("KAT:", kat_name)
-    print("Trials:", RANDOM_TRIALS)
-    print("Unknown counts:", UNKNOWN_COUNTS)
-    print("Results file:", results_file)
-    print("=====================================================")
-    print()
-    print("UNKNOWN | TRIAL | KNOWN | BUILD | SOLVE | TOTAL | CORRECT")
-    print("------------------------------------------------------------")
-
-    for unknown_count in UNKNOWN_COUNTS:
-        for trial in range(1, RANDOM_TRIALS + 1):
-            if random_result_exists(kat_name, unknown_count, trial):
-                print(
-                    f"{unknown_count:7} | "
-                    f"{trial:5} | "
-                    f"{128 - unknown_count:5} | "
-                    f"ALREADY COMPLETED",
-                    flush=True
-                )
-
-                continue
-
-            seed = get_random_seed(unknown_count, trial)
-            unknown_positions = get_unknown_positions(unknown_count, "random", seed)
-
-            print()
-            print(f"Running {unknown_count} random unknown bits, trial {trial}/{RANDOM_TRIALS}, seed={seed}...", flush=True)
-            print("Positions:", unknown_positions, flush=True)
-
-            try:
-                result = recover_key_gift_cofb(
-                    true_key=case["true_key"],
-                    unknown_positions=unknown_positions,
-                    nonce=case["nonce"],
-                    associated_data=case["associated_data"],
-                    message=case["message"],
-                    known_ciphertext=case["known_ciphertext"],
-                    known_tag=case["known_tag"],
-                    check_unique=False
-                )
-
-            except Exception as error:
-                if "keyboard interrupt" in str(error).lower():
-                    print()
-                    print("Analysis stopped by user.")
-                    print("All completed random results are already saved in:")
-                    print(results_file)
-                    return False
-
-                raise
-
             recovered_key = result["recovered_key"]
             correct = recovered_key == case["true_key"]
 
-            print(
-                f"{unknown_count:7} | "
-                f"{trial:5} | "
-                f"{128 - unknown_count:5} | "
-                f"{result['build_time']:5.2f}s | "
-                f"{result['solve_time']:7.2f}s | "
-                f"{result['total_time']:7.2f}s | "
-                f"{correct}",
-                flush=True
+            save_random_result(
+                kat_name,
+                trial,
+                seed,
+                unknown_count,
+                unknown_positions,
+                result,
+                correct
             )
 
-            save_random_result(kat_name, trial, seed, unknown_count, unknown_positions, result, correct)
-
-            if recovered_key is None:
-                print()
-                print("No satisfying key was found.")
-                print("Stopping this KAT.")
-                return False
-
-    print()
-    print("Finished random analysis for:", kat_name)
-    return True
-
 def run_all_analysis(position_mode):
-    print()
-    print("GIFT-COFB FULL ANALYSIS")
-    print("Position mode:", position_mode)
-    print("KATs:", KAT_NAMES)
-    print()
-
     for kat_name in KAT_NAMES:
         if position_mode == "random":
-            completed = run_random_analysis(kat_name)
+            run_random_analysis(kat_name)
         else:
-            completed = run_position_analysis(kat_name, position_mode)
-
-        if not completed:
-            print()
-            print("Full analysis stopped.")
-            return
-
-    print()
-    print("=====================================================")
-    print("ALL ANALYSES FINISHED")
-    print("=====================================================")
+            run_position_analysis(kat_name, position_mode)
 
 def get_uniqueness_cases():
     cases = []
@@ -650,19 +1241,8 @@ def get_uniqueness_cases():
 
 def run_uniqueness_analysis():
     uniqueness_cases = get_uniqueness_cases()
-    results_file = get_results_file("unique")
 
-    print()
-    print("=====================================================")
-    print("GIFT-COFB FULL UNIQUENESS ANALYSIS")
-    print("Unknown bits:", UNIQUENESS_UNKNOWN_COUNT)
-    print("KATs:", KAT_NAMES)
-    print("Modes: LAST, FIRST, RANDOM trial 1-3")
-    print("Total cases:", len(uniqueness_cases))
-    print("Results file:", results_file)
-    print("=====================================================")
-
-    for case_number, uniqueness_case in enumerate(uniqueness_cases, start=1):
+    for uniqueness_case in uniqueness_cases:
         case_name = uniqueness_case["case_name"]
         kat_name = uniqueness_case["kat_name"]
         position_mode = uniqueness_case["position_mode"]
@@ -670,8 +1250,6 @@ def run_uniqueness_analysis():
         seed = uniqueness_case["seed"]
 
         if uniqueness_result_exists(case_name):
-            print()
-            print(f"[{case_number}/{len(uniqueness_cases)}] {case_name} - ALREADY COMPLETED")
             continue
 
         case = get_kat_case(kat_name)
@@ -681,54 +1259,19 @@ def run_uniqueness_analysis():
         else:
             unknown_positions = get_unknown_positions(UNIQUENESS_UNKNOWN_COUNT, position_mode)
 
-        print()
-        print("-----------------------------------------------------")
-        print(f"[{case_number}/{len(uniqueness_cases)}]")
-        print("Case:", case_name)
-        print("KAT:", kat_name)
-        print("Mode:", position_mode)
-
-        if position_mode == "random":
-            print("Trial:", trial)
-            print("Seed:", seed)
-
-        print("Unknown positions:", unknown_positions)
-        print("Recovering key and checking uniqueness...")
-        print("-----------------------------------------------------", flush=True)
-
-        try:
-            result = recover_key_gift_cofb(
-                true_key=case["true_key"],
-                unknown_positions=unknown_positions,
-                nonce=case["nonce"],
-                associated_data=case["associated_data"],
-                message=case["message"],
-                known_ciphertext=case["known_ciphertext"],
-                known_tag=case["known_tag"],
-                check_unique=True
-            )
-
-        except Exception as error:
-            if "keyboard interrupt" in str(error).lower():
-                print()
-                print("Uniqueness analysis stopped by user.")
-                print("All completed results are already saved in:")
-                print(results_file)
-                return
-
-            raise
+        result = recover_key_gift_cofb(
+            true_key=case["true_key"],
+            unknown_positions=unknown_positions,
+            nonce=case["nonce"],
+            associated_data=case["associated_data"],
+            message=case["message"],
+            known_ciphertext=case["known_ciphertext"],
+            known_tag=case["known_tag"],
+            check_unique=True
+        )
 
         recovered_key = result["recovered_key"]
         correct = recovered_key == case["true_key"]
-
-        print()
-        print("Recovered key:", recovered_key.hex().upper() if recovered_key is not None else "NONE")
-        print("Correct key:", correct)
-        print("Unique key:", result["unique"])
-        print("Build time:", f'{result["build_time"]:.2f} s')
-        print("Solve time:", f'{result["solve_time"]:.2f} s')
-        print("Uniqueness time:", f'{result["uniqueness_time"]:.2f} s')
-        print("Total time:", f'{result["total_time"]:.2f} s')
 
         save_uniqueness_result(
             case_name,
@@ -742,37 +1285,108 @@ def run_uniqueness_analysis():
             correct
         )
 
-    print()
-    print("=====================================================")
-    print("ALL UNIQUENESS ANALYSES FINISHED")
-    print("=====================================================")
+def run_solver_benchmark(kat_name="count1", unknown_count=SOLVER_BENCHMARK_UNKNOWN_COUNT, trial=SOLVER_BENCHMARK_TRIAL, timeout_seconds=SOLVER_TIMEOUT_SECONDS):
+    case = get_kat_case(kat_name)
+    seed = get_random_seed(unknown_count, trial)
+    unknown_positions = get_unknown_positions(unknown_count, "random", seed)
+
+    instance = build_key_recovery_instance(
+        case["true_key"],
+        unknown_positions,
+        case["nonce"],
+        case["associated_data"],
+        case["message"],
+        case["known_ciphertext"],
+        case["known_tag"]
+    )
+
+    builder = instance["builder"]
+    key_bits = instance["key_bits"]
+
+    for solver_name, solver_class in SOLVERS:
+        if solver_result_exists(kat_name, unknown_count, trial, solver_name):
+            continue
+
+        try:
+            result = run_solver_with_timeout(
+                solver_name,
+                builder.cnf.clauses,
+                key_bits,
+                case["true_key"],
+                timeout_seconds
+            )
+
+        except KeyboardInterrupt:
+            return
+
+        save_solver_result(
+            kat_name,
+            "random",
+            trial,
+            seed,
+            unknown_count,
+            unknown_positions,
+            solver_name,
+            instance["build_time"],
+            result["solve_time"],
+            result["satisfiable"],
+            result["correct"],
+            result["recovered_key"],
+            instance["variables"],
+            instance["clauses"],
+            result["status"],
+            result["error"]
+        )
 
 def main():
-    if len(sys.argv) == 2 and sys.argv[1] == "uniqueness":
+    if len(sys.argv) >= 2 and sys.argv[1] == "divide-night":
+        hours = 10.0
+
+        if len(sys.argv) >= 3:
+            hours = float(sys.argv[2])
+
+        run_divide_night(hours)
+        return
+
+    if len(sys.argv) >= 2 and sys.argv[1] == "uniqueness":
         run_uniqueness_analysis()
+        return
+
+    if len(sys.argv) >= 2 and sys.argv[1] == "solvers":
+        kat_name = "count1"
+        unknown_count = SOLVER_BENCHMARK_UNKNOWN_COUNT
+        trial = SOLVER_BENCHMARK_TRIAL
+        timeout_seconds = SOLVER_TIMEOUT_SECONDS
+
+        if len(sys.argv) >= 3:
+            kat_name = sys.argv[2]
+
+        if len(sys.argv) >= 4:
+            unknown_count = int(sys.argv[3])
+
+        if len(sys.argv) >= 5:
+            trial = int(sys.argv[4])
+
+        if len(sys.argv) >= 6:
+            timeout_seconds = int(sys.argv[5])
+
+        run_solver_benchmark(kat_name, unknown_count, trial, timeout_seconds)
         return
 
     if len(sys.argv) < 3:
         print("Usage:")
-        print("python3 -m src.gift_cofb_analysis count1 random")
-        print("python3 -m src.gift_cofb_analysis count545 random")
-        print("python3 -m src.gift_cofb_analysis count1089 random")
-        print("python3 -m src.gift_cofb_analysis all random")
+        print("python3 -m src.gift_cofb_analysis divide-night 10")
         print("python3 -m src.gift_cofb_analysis uniqueness")
+        print("python3 -m src.gift_cofb_analysis solvers count1089 16 1 1800")
+        print("python3 -m src.gift_cofb_analysis all random")
         return
 
     kat_name = sys.argv[1]
     position_mode = sys.argv[2]
 
-    if position_mode not in ["first", "last", "random"]:
-        raise ValueError("Position mode must be: first, last or random")
-
     if kat_name == "all":
         run_all_analysis(position_mode)
         return
-
-    if kat_name not in KAT_NAMES:
-        raise ValueError("KAT must be: count1, count545, count1089 or all")
 
     if position_mode == "random":
         run_random_analysis(kat_name)
