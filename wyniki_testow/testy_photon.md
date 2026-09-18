@@ -18,7 +18,8 @@ gdzie n - liczba nieznanych bitów
 | 14 | 203 s |
 | 16 | 674 s |
 | 20 | 3056 s |
-| 24 | > 15 h |
+| 24 | >12 h |
+
 
 ### Test dla nieznanych pierwszych bitów
 
@@ -68,33 +69,32 @@ gdzie n - liczba nieznanych bitów
 | 14 | 1034 s |
 | 16 | 3045 s |
 | 20 |  |
-| 24 | |
 
 ### Test dla nieznanych pierwszych bitów
 
 | Ilość nieznanych bitów | Czas rozwiązania |
 | -----------------------| ---------------- |
-| 1 | |
-| 2 | |
-| 4 | |
-| 8 | |
-| 10 | | 
-| 12 | |
-| 14 | |
-| 16 | | 
-| 20 | |
+| 1 | 0.13 s |
+| 2 | 0.17 s |
+| 4 | 0.14 s |
+| 8 | 0.18 s |
+| 10 | 196 s | 
+| 12 | 398 s|
+| 14 | 1793 s |
+| 16 | 6015 s| 
+| 20 |  |
 
 
 ### Test dla nieznanych losowych bitów
 
 | Ilość nieznanych bitów | Czas rozwiązania |
 | -----------------------| ---------------- |
-| 1 | |
-| 2 | |
-| 4 | |
-| 8 | |
-| 10 | |
-| 12 | |
-| 14 | |
+| 1 | 0.06 s|
+| 2 | 0.06 s|
+| 4 | 0.07 s |
+| 8 | 14 s |
+| 10 | 57 s |
+| 12 | 15 s |
+| 14 | 1455 s |
 | 16 | |
 | 20 | |
