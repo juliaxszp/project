@@ -2,7 +2,7 @@
 #stale ustalony klucz: a0bf9f4acef48231
 #stale ustalony Nonce: 1234567890abcdee
 #stale ustalone AD: aaabbbcccddd
-from .xoodyak_functions import *
+from .functions import *
 import json
 #klucz = "a0bf9f4acef48231a0bf9f4acef48231"
 #nonce = "1234567890abcdee1234567890abcdee"
@@ -285,7 +285,6 @@ def squeeze_16(tablica, tablica_sat, nr_bloku, nr_xoodoo):
 
 def xoodyak():
     tablica = {}
-    #poniższe wartości są wzięte z implementacji itzmeanjan/xoodyak z powodu jasnego rozdzielenia wartości szyfrogramu i tagu przez autora, co omijało ryzyko złego podzielenia ciągu (ct, tag) na poszczególne wartości.
 
     Key = "e5a7bad5128170584b5ba804b559a234"
 
