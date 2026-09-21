@@ -18,7 +18,7 @@ gdzie n - liczba nieznanych bitów
 | 14 | 203 s |
 | 16 | 674 s |
 | 20 | 3056 s |
-| 24 | >12 h |
+| 24 | >10 h |
 
 
 ### Test dla nieznanych pierwszych bitów
@@ -33,7 +33,9 @@ gdzie n - liczba nieznanych bitów
 | 12 | 147 s |
 | 14 | 613 s |
 | 16 | 1501 s | 
-| 20 | ???? |
+| 20 | 12168 s |
+| 24 | >10 h |
+
 
 
 ### Test dla nieznanych losowych bitów
@@ -48,7 +50,8 @@ gdzie n - liczba nieznanych bitów
 | 12 | 27 s |
 | 14 | 605 s |
 | 16 | 1840 s |
-| 20 | ?? |
+| 20 | 2672 s |
+| 24 | >10 h |
 
 2. Test KAT454, z AD, 104 bitowy PTX
 
@@ -68,7 +71,8 @@ gdzie n - liczba nieznanych bitów
 | 12 | 587 s |
 | 14 | 1034 s |
 | 16 | 3045 s |
-| 20 |  |
+| 20 | 4006 s |
+| 24 | >10h |
 
 ### Test dla nieznanych pierwszych bitów
 
@@ -79,10 +83,11 @@ gdzie n - liczba nieznanych bitów
 | 4 | 0.14 s |
 | 8 | 0.18 s |
 | 10 | 196 s | 
-| 12 | 398 s|
+| 12 | 398 s |
 | 14 | 1793 s |
-| 16 | 6015 s| 
-| 20 |  |
+| 16 | 6015 s | 
+| 20 | 19368 s |
+| 24 | >10h |
 
 
 ### Test dla nieznanych losowych bitów
@@ -96,5 +101,6 @@ gdzie n - liczba nieznanych bitów
 | 10 | 57 s |
 | 12 | 15 s |
 | 14 | 1455 s |
-| 16 | |
-| 20 | |
+| 16 | 1623 s|
+| 20 | 8000 s |
+| 24 | >10 h |

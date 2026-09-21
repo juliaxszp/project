@@ -152,7 +152,7 @@ def kpa265_no_ad_random():
             key_bits.append((byte >> b) & 1)
     assert len(key_bits) == 128
     import random
-    unknown_key_bits = 14
+    unknown_key_bits = 20
     unknown_positions = set(random.sample(range(128), unknown_key_bits))
     print("nienznane pozycje:", sorted(unknown_positions))
     for i in range(128):
@@ -221,7 +221,7 @@ def kpa454_with_ad_last():
         for b  in range(8):
             key_bits.append((byte >> b) & 1)
     assert len(key_bits) == 128
-    known_key_bits = 108
+    known_key_bits = 104
     for i in range(known_key_bits):
         if key_bits[i] == 1:
             builder.cnf.append([key[i]])
@@ -352,7 +352,7 @@ def kpa454_with_ad_random():
             key_bits.append((byte >> b) & 1)
     assert len(key_bits) == 128
     import random
-    unknown_key_bits = 16
+    unknown_key_bits = 20
     unknown_positions = set(random.sample(range(128), unknown_key_bits))
     print("nieznane pozycje:", sorted(unknown_positions))
     for i in range(128):
