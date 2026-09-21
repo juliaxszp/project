@@ -1,3 +1,25 @@
+"""
+Final parallel divide-and-conquer benchmark for GIFT-COFB key recovery.
+
+Configuration used for the final comparison:
+- KAT: Count1089
+- unknown key positions: LAST
+- unknown-bit counts: 8, 10, 12, 14, 16, 18, 20, 21, 22, 24
+- split depth: 5 bits, therefore 32 branches
+- maximum parallel Kissat workers: 8
+- three deterministic randomized divide trials per point
+
+The runner writes every completed branch to CSV, checkpoints long experiments
+and can resume after Ctrl+C.  The summary CSV is the main source for the final
+Single-Kissat vs divide-and-conquer plots.
+
+Run:
+    caffeinate -i python3 -m src.gift_cofb_divide_curve run
+
+Status:
+    python3 -m src.gift_cofb_divide_curve status
+"""
+
 import csv
 import random
 import sys
@@ -10,9 +32,14 @@ from pysat.solvers import Kissat404
 from .gift_cofb_analysis import build_key_recovery_instance, get_kat_case, get_unknown_positions, key_bit_value, sat_bits_to_bytes
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-BASELINE_LAST_FILE = PROJECT_DIR / "gift_cofb_analysis_results_last.csv"
-CURVE_RESULTS_FILE = PROJECT_DIR / "gift_cofb_analysis_results_divide_curve.csv"
-CURVE_SUMMARY_FILE = PROJECT_DIR / "gift_cofb_analysis_results_divide_curve_summary.csv"
+ANALYSIS_DIR = PROJECT_DIR / "analysis" / "gift_cofb"
+BASELINE_RESULTS_DIR = ANALYSIS_DIR / "results" / "baseline"
+DIVIDE_RESULTS_DIR = ANALYSIS_DIR / "results" / "divide"
+BASELINE_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+DIVIDE_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+BASELINE_LAST_FILE = BASELINE_RESULTS_DIR / "gift_cofb_analysis_results_last.csv"
+CURVE_RESULTS_FILE = DIVIDE_RESULTS_DIR / "gift_cofb_analysis_results_divide_curve.csv"
+CURVE_SUMMARY_FILE = DIVIDE_RESULTS_DIR / "gift_cofb_analysis_results_divide_curve_summary.csv"
 
 KAT_NAME = "count1089"
 UNKNOWN_COUNTS = [8, 10, 12, 14, 16, 18, 20, 21, 22, 24]
