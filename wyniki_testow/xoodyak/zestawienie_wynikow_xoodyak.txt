@@ -1,0 +1,159 @@
+Dane uzyskane dla następujących parametrów:
+    Key = "e5a7bad5128170584b5ba804b559a234"
+
+    Nonce = "74a9c38c241ac134b87dba198879d81a"
+
+    AD = "ae4e344a85b5d767327e9fbaa16b58bffa2c3a8b0f4d30d14ed6aaf35e5ecb4f"
+
+    Plaintext = "60e8a3bd1e51b59e769208826f9adb6eedabf8a9c2402a71704c830e03be3b1aa80cc4795a522731a72e2fa1b5258093f2a46d105a057d8c4dbb092264a65e37"
+
+    ciphertext = "8101b6d1ff84dc5ff91cea283263e753c7cb8898175d2521c346cd6181a46757157db4207a244a502e5429350f8e4e79249dc90d14300c8e39a7f4823633e768"
+
+    tag = "654649376b73ffffa09545c548271d66"
+Pomiary zostały wykonane na runnerach GitHuba na maszynach z systemem Ubuntu 24.04 LTS. Różnice w wynikach mieszczących się w 30% prawdopodobnie są spowodowane różnicami w procesorach stosowanych na maszynach wirtualnych wykorzystywane przez runnery Githuba.
+
+
+Dane pokazujące rozrzut w wynikach kryptoanalizy 8 nieznanych bitów klucza
+
+parametr	kissat_z1	kissat_z2	cryptosat_z1	crypto_sat_z2
+rezultat	SAT	SAT	TO	TO
+poprawny klucz	True	True	TO	TO
+czas (s)	2.35	2.54	TO	TO
+pamięć (MiB)	136.23	136.18	TO	TO
+zmienne	90624.00	90624.00	TO	TO
+klauzule	359416.00	359416.00	TO	TO
+
+||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+bity klucza: 32-39
+parametr	kissat_z1	kissat_z2	cryptosat_z1	crypto_sat_z2
+rezultat	SAT	SAT	SAT	SAT
+poprawny klucz	True	True	True	True
+czas (s)	0.40	0.58	11.35	11.76
+pamięć (MiB)	132.20	132.11	194.98	196.29
+zmienne	90624.00	90624.00	90624.00	90624.00
+klauzule	359416.00	359416.00	359416.00	359416.00
+
+||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+bity klucza: 64-71
+parametr	kissat_z1	kissat_z2	cryptosat_z1	crypto_sat_z2
+rezultat	SAT	SAT	SAT	SAT
+poprawny klucz	True	True	True	True
+czas (s)	2.48	2.08	21.32	22.26
+pamięć (MiB)	135.34	135.85	211.66	211.32
+zmienne	90624.00	90624.00	90624.00	90624.00
+klauzule	359416.00	359416.00	359416.00	359416.00
+
+||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+bity klucza: 96-103
+parametr	kissat_z1	kissat_z2	cryptosat_z1	crypto_sat_z2
+rezultat	SAT	SAT	SAT	SAT
+poprawny klucz	True	True	True	True
+czas (s)	0.98	1.07	21.46	20.96
+pamięć (MiB)	132.32	132.00	219.16	218.87
+zmienne	90624.00	90624.00	90624.00	90624.00
+klauzule	359416.00	359416.00	359416.00	359416.00
+
+Podsumowanie:
+Limit czasu dla powyższych testów wynosił 6 godzin. Mimo szybkiego rozwiązania zadania przez kissat, w tym przypadku cryptominisat nie zdążył w zadanym limicie czasu odzyskać nieznane bity klucza.
+Różnica czasu potrzebnego do rozwiązania pomiędzy instancjami maksymalnie różniła się w bitach 64-71 dla solvera crypto minisat i wynosił 0,94 s.
+====================================================================================================
+
+rozwiązanie bajtu klucza
+Uwaga: dla bitów 0-7, 32-39, 64-71 i 96-103 użyto pierwszego pomiaru (z1); dla pozostałych 12 bajtów użyto wyników keysweep.
+parametr	kissat_0-7	cryptosat_0-7	kissat_8-15	cryptosat_8-15	kissat_16-23	cryptosat_16-23	kissat_24-31	cryptosat_24-31	kissat_32-39	cryptosat_32-39	kissat_40-47	cryptosat_40-47	kissat_48-55	cryptosat_48-55	kissat_56-63	cryptosat_56-63	kissat_64-71	cryptosat_64-71	kissat_72-79	cryptosat_72-79	kissat_80-87	cryptosat_80-87	kissat_88-95	cryptosat_88-95	kissat_96-103	cryptosat_96-103	kissat_104-111	cryptosat_104-111	kissat_112-119	cryptosat_112-119	kissat_120-127	cryptosat_120-127
+rezultat	SAT	TO	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT	SAT
+poprawny klucz	True	TO	True	True	True	True	True	True	True	True	True	True	True	True	True	True	True	True	True	True	True	True	True	True	True	True	True	True	True	True	True	True
+czas (s)	2.35	TO	2.68	18.64	1.22	21.43	1.81	44.34	0.40	11.35	2.10	10.44	1.22	26.18	1.23	4.18	2.48	21.32	3.70	19.85	1.34	14.62	1.65	40.24	0.98	21.46	3.21	10.76	0.96	17.36	2.32	4.90
+pamięć (MiB)	136.23	TO	143.16	209.75	138.39	207.56	135.25	249.12	132.20	194.98	135.93	195.66	134.66	226.53	133.23	154.58	135.34	211.66	141.93	210.72	135.20	207.63	136.96	251.35	132.32	219.16	135.03	195.62	133.88	228.04	133.11	144.37
+zmienne	90624.00	TO	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00	90624.00
+klauzule	359416.00	TO	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00	359416.00
+
+====================================================================================================
+Podsumowanie: wystąpił duży rozrzut w czasie potrzebnym do odzyskania różnych bajtów dla badanego klucza.
+Dla Kissat-a minimalny czas wyniósł 0,4 s, maksymalny 3,7 s. Średni czas na odzyskanie = 1,85 s.
+Dla crypto minisat-a, minimalny czas wyniósł 4,18 s, maksymalny 44.34 s, a średnia to 19.14 s.
+
+Tabela: dane dla odzyskiwania 16 nieznanych bitów klucza
+
+parametr	kissat_z1	kissat_z2	cryptosat_z1	crypto_sat_z2
+rezultat	SAT	SAT	SAT	SAT
+poprawny klucz	True	True	True	True
+czas (s)	73.80	69.90	74.36	50.23
+pamięć (MiB)	139.17	138.99	224.00	224.10
+zmienne	90624.00	90624.00	90624.00	90624.00
+klauzule	359408.00	359408.00	359408.00	359408.00
+
+||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+parametr	kissat_z1	kissat_z2	cryptosat_z1	crypto_sat_z2
+rezultat	SAT	SAT	TO	TO
+poprawny klucz	True	True	TO	TO
+czas (s)	24.17	13.98	TO	TO
+pamięć (MiB)	139.12	139.64	TO	TO
+zmienne	90624.00	90624.00	TO	TO
+klauzule	359408.00	359408.00	TO	TO
+
+||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+parametr	kissat_z1	kissat_z2	cryptosat_z1	crypto_sat_z2
+rezultat	SAT	SAT	SAT	SAT
+poprawny klucz	True	True	True	True
+czas (s)	104.11	118.44	329.58	252.97
+pamięć (MiB)	138.71	139.66	215.36	216.43
+zmienne	90624.00	90624.00	90624.00	90624.00
+klauzule	359408.00	359408.00	359408.00	359408.00
+
+||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+parametr	kissat_z1	kissat_z2	cryptosat_z1	crypto_sat_z2
+rezultat	SAT	SAT	SAT	SAT
+poprawny klucz	True	True	True	True
+czas (s)	150.86	170.24	314.73	363.63
+pamięć (MiB)	140.52	140.35	217.35	217.31
+zmienne	90624.00	90624.00	90624.00	90624.00
+klauzule	359408.00	359408.00	359408.00	359408.00
+
+Podsumowanie:
+Największa różnica między tymi ciągami bitów, dla tego samego SATSolvera, był dla crypto minisat-a w trzecim przypadku i wyniósł 76,61 s.
+
+Uwaga dla uzyskanych wyników: różnica w wynikach ma przyczynę taką, że SATSolvery są narzędziami heurystycznymi. Dodatkowo średnie nie biorą pod uwagę przypadki, kiedy SATSolver wyczerpał limit czasowy wynoszący 6 godzin na odnalezienie bitów klucza.
+Z tych pomiarów widać, że Kissat w wersji 4.0.4 szybciej rozwiązuje problemy SAT dla fragmentów klucza o długości rzędu 8-16 bitów.
+
+Oszacowanie potrzebnego czasu, aby odzyskać fragmenty klucza korzystając z SATSolvera i ataku KPA:
+
+Aby uzyskać równanie pokazujące zależność pomiędzy długością nieznanego fragmentu klucza w bitach i potrzebnym czasie, aby go odzyskać, spróbowałem uzyskać jak najwięcej punktów danych, aby móc uzyskać równanie.
+Ponieważ istniał niezerowy rozrzut w niezbędnym czasie, aby odzyskać różne fragmenty klucza, dla 8 i 16 bitów wykorzystałem średnią arytmetyczną z pomiarów.
+Aby uzyskać wyniki dla 20 i 24 bitów, sprawdziłem w tabeli, które 3-bajtowe fragmenty klucza miały średni czas odzyskiwania jednego bajtu klucza w porównaniu do średniej arytmetycznej.
+Uzyskałem wynik, że dwa fragmenty, które miały średnią najbliższej do średniej to były dla bajtów 1-3 i dla 11-13.
+
+Dane wykorzystane do obliczeń:
+Kissat 4.0.4:
+(liczba bitów, czas (s))
+(0, 0)
+(8, 1,85)
+(16, 90,69)
+
+Crypto minisat:
+(0, 0)
+(8, 18,19)
+(16, 230,92)
+
+
+Zestawienie wyników dla prób kryptoanalizy 20 i 24 bitów:
+
+Dla 20 bitów:
+
+Kissat404: instancje 1 i 2: Timeout po 358 minutach.
+Crypto Minisat instancje 1 i 2: Timeout po 358 minutach.
+
+Kissat instancja 1, uruchomiona lokalnie, timeout po 24 godzinach
+
+Dla 24 bitów:
+Crypto minisat: instancja 1, SAT w 15539.64 s.
+Cryptominisat instancja 2: timeout w 6 godzinach.
+Kissat: instancje 1 i 2: timeout po 6 godzinach.
+
+Uwaga: testy lokalne były uniemożliwione przez wolniejsze działanie mojego komputera. Na moim komputerze rozwiązanie problemu SAT z 16 nieznanymi bitami klucza odbyło się w 865,8 s, co wskazuje na 3 razy wolniejsze obliczanie. To niestety uniemożliwiło próbowanie odzyskanie 20 nieznanych bitów klucza lub podobnego testu lub nawet pozyskania danych porównywalnych do tych uzyskanych z runnerów githuba.
