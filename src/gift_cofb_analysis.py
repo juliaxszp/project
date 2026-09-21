@@ -6,41 +6,30 @@ from multiprocessing import get_context
 from pathlib import Path
 from queue import Empty
 from time import perf_counter
-from pysat.solvers import Kissat404, Cadical300, Glucose42, MapleChrono, Mergesat3
+from pysat.solvers import Kissat404
 from .basics import BasicFunctions
 from .gift_cofb import gift_cofb_encrypt
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-UNKNOWN_COUNTS = [1, 2, 4, 8, 16, 20]
-RANDOM_TRIALS = 3
+RANDOM_RESULTS_FILE = PROJECT_DIR / "gift_cofb_analysis_results_random.csv"
+NIGHT_RESULTS_FILE = PROJECT_DIR / "gift_cofb_analysis_results_divide_night.csv"
+NIGHT_SUMMARY_FILE = PROJECT_DIR / "gift_cofb_analysis_results_divide_night_summary.csv"
+
 RANDOM_SEED_BASE = 20260916
-KAT_NAMES = ["count1", "count545", "count1089"]
-UNIQUENESS_UNKNOWN_COUNT = 16
-SOLVER_BENCHMARK_UNKNOWN_COUNT = 16
-SOLVER_BENCHMARK_TRIAL = 1
-SOLVER_TIMEOUT_SECONDS = 1800
-DIVIDE_KAT = "count1089"
-DIVIDE_UNKNOWN_COUNT = 20
-DIVIDE_TRIAL = 1
-DIVIDE_SPLIT_COUNTS = [2, 3, 4, 5]
-DIVIDE_MAX_WORKERS = 4
+DIVIDE_SEED_BASE = 20260918
 
-SOLVERS = [
-    ("Kissat404", Kissat404),
-    ("Glucose42", Glucose42),
-    ("MapleChrono", MapleChrono)
-]
-
-SOLVER_CLASSES = {
-    "Kissat404": Kissat404,
-    "Cadical300": Cadical300,
-    "Glucose42": Glucose42,
-    "MapleChrono": MapleChrono,
-    "Mergesat3": Mergesat3
-}
-
-def get_results_file(position_mode):
-    return PROJECT_DIR / f"gift_cofb_analysis_results_{position_mode}.csv"
+NIGHT_KAT = "count1089"
+NIGHT_UNKNOWN_COUNT = 20
+NIGHT_BASE_TRIAL = 1
+WORKER_COUNTS = [1, 2, 4, 6, 8]
+WORKER_TUNING_SPLIT_BITS = 5
+WORKER_TUNING_DIVIDE_TRIAL = 1
+SPLIT_COUNTS = [3, 4, 5, 6]
+DIVIDE_TRIALS = [1, 2, 3]
+GENERALIZATION_BASE_TRIALS = [2, 3]
+CHALLENGE_UNKNOWN_COUNT = 22
+CHALLENGE_BASE_TRIAL = 1
+CHECKPOINT_SECONDS = 300
 
 def bytes_to_fixed_sat_bits(builder, data, prefix):
     bits = []
@@ -63,9 +52,9 @@ def key_to_sat_bits_with_unknowns(builder, true_key, unknown_positions, prefix="
     if len(true_key) != 16:
         raise ValueError("GIFT-COFB key must contain 16 bytes")
 
-    unknown_positions = set(unknown_positions)
+    unknown_positions_set = set(unknown_positions)
 
-    for position in unknown_positions:
+    for position in unknown_positions_set:
         if position < 0 or position >= 128:
             raise ValueError("Key bit position must be between 0 and 127")
 
@@ -77,7 +66,7 @@ def key_to_sat_bits_with_unknowns(builder, true_key, unknown_positions, prefix="
             var = builder.var(f"{prefix}_{bit_position}")
             key_bits.append(var)
 
-            if bit_position not in unknown_positions:
+            if bit_position not in unknown_positions_set:
                 bit = (byte >> bit_index) & 1
 
                 if bit == 1:
@@ -297,405 +286,86 @@ def get_unknown_positions(unknown_count, position_mode, seed=None):
 
     raise ValueError("Unknown position mode. Use: first, last or random")
 
-def save_position_result(kat_name, position_mode, unknown_count, unknown_positions, result, correct):
-    results_file = get_results_file(position_mode)
-    file_exists = results_file.exists()
-
-    with open(results_file, "a", newline="") as file:
-        writer = csv.writer(file)
-
-        if not file_exists:
-            writer.writerow([
-                "kat",
-                "position_mode",
-                "unknown_bits",
-                "known_bits",
-                "unknown_positions",
-                "build_time",
-                "solve_time",
-                "total_time",
-                "correct",
-                "recovered_key",
-                "variables",
-                "clauses"
-            ])
-
-        recovered_key = result["recovered_key"]
-        recovered_key_hex = "" if recovered_key is None else recovered_key.hex().upper()
-        positions_text = ";".join(str(position) for position in unknown_positions)
-
-        writer.writerow([
-            kat_name,
-            position_mode,
-            unknown_count,
-            128 - unknown_count,
-            positions_text,
-            result["build_time"],
-            result["solve_time"],
-            result["total_time"],
-            correct,
-            recovered_key_hex,
-            result["variables"],
-            result["clauses"]
-        ])
-
-def save_random_result(kat_name, trial, seed, unknown_count, unknown_positions, result, correct):
-    results_file = get_results_file("random")
-    file_exists = results_file.exists()
-
-    with open(results_file, "a", newline="") as file:
-        writer = csv.writer(file)
-
-        if not file_exists:
-            writer.writerow([
-                "kat",
-                "position_mode",
-                "trial",
-                "seed",
-                "unknown_bits",
-                "known_bits",
-                "unknown_positions",
-                "build_time",
-                "solve_time",
-                "total_time",
-                "correct",
-                "recovered_key",
-                "variables",
-                "clauses"
-            ])
-
-        recovered_key = result["recovered_key"]
-        recovered_key_hex = "" if recovered_key is None else recovered_key.hex().upper()
-        positions_text = ";".join(str(position) for position in unknown_positions)
-
-        writer.writerow([
-            kat_name,
-            "random",
-            trial,
-            seed,
-            unknown_count,
-            128 - unknown_count,
-            positions_text,
-            result["build_time"],
-            result["solve_time"],
-            result["total_time"],
-            correct,
-            recovered_key_hex,
-            result["variables"],
-            result["clauses"]
-        ])
-
-def random_result_exists(kat_name, unknown_count, trial):
-    results_file = get_results_file("random")
-
-    if not results_file.exists():
-        return False
-
-    with open(results_file, "r", newline="") as file:
-        reader = csv.DictReader(file)
-
-        for row in reader:
-            if row["kat"] == kat_name and int(row["unknown_bits"]) == unknown_count and int(row["trial"]) == trial:
-                return True
-
-    return False
-
-def save_uniqueness_result(case_name, kat_name, position_mode, trial, seed, unknown_count, unknown_positions, result, correct):
-    results_file = get_results_file("unique")
-    file_exists = results_file.exists()
-
-    with open(results_file, "a", newline="") as file:
-        writer = csv.writer(file)
-
-        if not file_exists:
-            writer.writerow([
-                "case",
-                "kat",
-                "position_mode",
-                "trial",
-                "seed",
-                "unknown_bits",
-                "known_bits",
-                "unknown_positions",
-                "build_time",
-                "solve_time",
-                "uniqueness_time",
-                "total_time",
-                "correct",
-                "unique",
-                "recovered_key",
-                "variables",
-                "clauses"
-            ])
-
-        recovered_key = result["recovered_key"]
-        recovered_key_hex = "" if recovered_key is None else recovered_key.hex().upper()
-        positions_text = ";".join(str(position) for position in unknown_positions)
-
-        writer.writerow([
-            case_name,
-            kat_name,
-            position_mode,
-            trial,
-            seed,
-            unknown_count,
-            128 - unknown_count,
-            positions_text,
-            result["build_time"],
-            result["solve_time"],
-            result["uniqueness_time"],
-            result["total_time"],
-            correct,
-            result["unique"],
-            recovered_key_hex,
-            result["variables"],
-            result["clauses"]
-        ])
-
-def uniqueness_result_exists(case_name):
-    results_file = get_results_file("unique")
-
-    if not results_file.exists():
-        return False
-
-    with open(results_file, "r", newline="") as file:
-        reader = csv.DictReader(file)
-
-        for row in reader:
-            if row["case"] == case_name:
-                return True
-
-    return False
-
-def save_solver_result(kat_name, position_mode, trial, seed, unknown_count, unknown_positions, solver_name, build_time, solve_time, satisfiable, correct, recovered_key, variables, clauses, status, error_text):
-    results_file = get_results_file("solvers")
-    file_exists = results_file.exists()
-
-    with open(results_file, "a", newline="") as file:
-        writer = csv.writer(file)
-
-        if not file_exists:
-            writer.writerow([
-                "kat",
-                "position_mode",
-                "trial",
-                "seed",
-                "unknown_bits",
-                "known_bits",
-                "unknown_positions",
-                "solver",
-                "build_time",
-                "solve_time",
-                "satisfiable",
-                "correct",
-                "recovered_key",
-                "variables",
-                "clauses",
-                "status",
-                "error"
-            ])
-
-        recovered_key_hex = "" if recovered_key is None else recovered_key.hex().upper()
-        positions_text = ";".join(str(position) for position in unknown_positions)
-
-        writer.writerow([
-            kat_name,
-            position_mode,
-            trial,
-            seed,
-            unknown_count,
-            128 - unknown_count,
-            positions_text,
-            solver_name,
-            build_time,
-            solve_time,
-            satisfiable,
-            correct,
-            recovered_key_hex,
-            variables,
-            clauses,
-            status,
-            error_text
-        ])
-
-def solver_result_exists(kat_name, unknown_count, trial, solver_name):
-    results_file = get_results_file("solvers")
-
-    if not results_file.exists():
-        return False
-
-    with open(results_file, "r", newline="") as file:
-        reader = csv.DictReader(file)
-
-        for row in reader:
-            if row["kat"] != kat_name:
-                continue
-
-            if int(row["unknown_bits"]) != unknown_count:
-                continue
-
-            if int(row["trial"]) != trial:
-                continue
-
-            if row["solver"] != solver_name:
-                continue
-
-            return True
-
-    return False
-
-def solver_worker(solver_name, clauses, key_bits, true_key, result_queue):
-    solver_class = SOLVER_CLASSES[solver_name]
-    solve_start = perf_counter()
-
-    try:
-        with solver_class(bootstrap_with=clauses) as solver:
-            satisfiable = solver.solve()
-
-            if satisfiable:
-                model = solver.get_model()
-            else:
-                model = None
-
-        solve_time = perf_counter() - solve_start
-
-        if satisfiable:
-            recovered_key = sat_bits_to_bytes(key_bits, model)
-            correct = recovered_key == true_key
-        else:
-            recovered_key = None
-            correct = False
-
-        result_queue.put({
-            "status": "OK",
-            "solve_time": solve_time,
-            "satisfiable": satisfiable,
-            "correct": correct,
-            "recovered_key": recovered_key,
-            "error": ""
-        })
-
-    except Exception as error:
-        result_queue.put({
-            "status": "ERROR",
-            "solve_time": perf_counter() - solve_start,
-            "satisfiable": False,
-            "correct": False,
-            "recovered_key": None,
-            "error": str(error)
-        })
-
-def run_solver_with_timeout(solver_name, clauses, key_bits, true_key, timeout_seconds):
-    context = get_context("fork")
-    result_queue = context.Queue()
-
-    process = context.Process(
-        target=solver_worker,
-        args=(
-            solver_name,
-            clauses,
-            key_bits,
-            true_key,
-            result_queue
-        )
-    )
-
-    wall_start = perf_counter()
-    process.start()
-
-    try:
-        process.join(timeout_seconds)
-
-    except KeyboardInterrupt:
-        if process.is_alive():
-            process.terminate()
-            process.join()
-
-        raise
-
-    if process.is_alive():
-        process.terminate()
-        process.join()
-
-        return {
-            "status": "TIMEOUT",
-            "solve_time": perf_counter() - wall_start,
-            "satisfiable": False,
-            "correct": False,
-            "recovered_key": None,
-            "error": f"Exceeded timeout of {timeout_seconds} seconds"
-        }
-
-    try:
-        result = result_queue.get(timeout=5)
-
-    except Empty:
-        return {
-            "status": "ERROR",
-            "solve_time": perf_counter() - wall_start,
-            "satisfiable": False,
-            "correct": False,
-            "recovered_key": None,
-            "error": f"Solver process exited with code {process.exitcode} without returning a result"
-        }
-
-    return result
-
 def get_random_baseline_solve_time(kat_name, unknown_count, trial):
-    results_file = get_results_file("random")
-
-    if not results_file.exists():
+    if not RANDOM_RESULTS_FILE.exists():
         return None
 
-    with open(results_file, "r", newline="") as file:
+    with open(RANDOM_RESULTS_FILE, "r", newline="") as file:
         reader = csv.DictReader(file)
 
         for row in reader:
-            if row["kat"] != kat_name:
+            if row.get("kat") != kat_name:
                 continue
 
-            if int(row["unknown_bits"]) != unknown_count:
+            if int(row.get("unknown_bits", -1)) != unknown_count:
                 continue
 
-            if int(row["trial"]) != trial:
+            if int(row.get("trial", -1)) != trial:
                 continue
 
             return float(row["solve_time"])
 
     return None
 
-def save_divide_row(row_type, experiment, kat_name, trial, seed, unknown_count, split_bits, split_positions, max_workers, branch_id, assignment, status, satisfiable, correct, recovered_key, solve_time, experiment_wall_time, baseline_solve_time, variables, clauses):
-    results_file = get_results_file("divide")
-    file_exists = results_file.exists()
+def key_bit_value(key, position):
+    byte_index = position // 8
+    bit_index = 7 - (position % 8)
+    return (key[byte_index] >> bit_index) & 1
 
-    with open(results_file, "a", newline="") as file:
+def get_divide_seed(base_trial, divide_trial):
+    return DIVIDE_SEED_BASE + base_trial * 100 + divide_trial
+
+def get_divide_plan(unknown_positions, split_bits, base_trial, divide_trial):
+    seed = get_divide_seed(base_trial, divide_trial)
+    rng = random.Random(seed)
+
+    position_order = list(unknown_positions)
+    rng.shuffle(position_order)
+    split_positions = sorted(position_order[:split_bits])
+
+    assignments = list(product([0, 1], repeat=split_bits))
+    rng.shuffle(assignments)
+
+    return seed, split_positions, assignments
+
+def night_header():
+    return [
+        "row_type",
+        "phase",
+        "experiment",
+        "kat",
+        "position_mode",
+        "base_trial",
+        "base_seed",
+        "divide_trial",
+        "divide_seed",
+        "unknown_bits",
+        "known_bits",
+        "split_bits",
+        "split_positions",
+        "max_workers",
+        "branch_id",
+        "assignment",
+        "branch_order",
+        "status",
+        "satisfiable",
+        "correct",
+        "recovered_key",
+        "branch_solve_time",
+        "experiment_wall_time",
+        "baseline_solve_time",
+        "variables",
+        "clauses"
+    ]
+
+def save_night_row(row_type, phase, experiment, kat_name, base_trial, base_seed, divide_trial, divide_seed, unknown_count, split_bits, split_positions, max_workers, branch_id, assignment, branch_order, status, satisfiable, correct, recovered_key, branch_solve_time, experiment_wall_time, baseline_solve_time, variables, clauses):
+    file_exists = NIGHT_RESULTS_FILE.exists()
+
+    with open(NIGHT_RESULTS_FILE, "a", newline="") as file:
         writer = csv.writer(file)
 
         if not file_exists:
-            writer.writerow([
-                "row_type",
-                "experiment",
-                "kat",
-                "position_mode",
-                "trial",
-                "seed",
-                "unknown_bits",
-                "known_bits",
-                "split_bits",
-                "split_positions",
-                "max_workers",
-                "branch_id",
-                "assignment",
-                "status",
-                "satisfiable",
-                "correct",
-                "recovered_key",
-                "solve_time",
-                "experiment_wall_time",
-                "baseline_solve_time",
-                "variables",
-                "clauses"
-            ])
+            writer.writerow(night_header())
 
         split_positions_text = ";".join(str(position) for position in split_positions)
         assignment_text = "".join(str(bit) for bit in assignment) if assignment is not None else ""
@@ -704,11 +374,14 @@ def save_divide_row(row_type, experiment, kat_name, trial, seed, unknown_count, 
 
         writer.writerow([
             row_type,
+            phase,
             experiment,
             kat_name,
             "random",
-            trial,
-            seed,
+            base_trial,
+            base_seed,
+            divide_trial,
+            divide_seed,
             unknown_count,
             128 - unknown_count,
             split_bits,
@@ -716,61 +389,85 @@ def save_divide_row(row_type, experiment, kat_name, trial, seed, unknown_count, 
             max_workers,
             branch_id,
             assignment_text,
+            branch_order,
             status,
             satisfiable,
             correct,
             recovered_key_hex,
-            solve_time,
+            branch_solve_time,
             experiment_wall_time,
             baseline_text,
             variables,
             clauses
         ])
 
-def get_divide_completed_branches(experiment):
-    results_file = get_results_file("divide")
+def read_night_rows():
+    if not NIGHT_RESULTS_FILE.exists():
+        return []
+
+    with open(NIGHT_RESULTS_FILE, "r", newline="") as file:
+        return list(csv.DictReader(file))
+
+def get_experiment_rows(experiment):
+    return [row for row in read_night_rows() if row["experiment"] == experiment]
+
+def get_experiment_summary(experiment):
+    for row in get_experiment_rows(experiment):
+        if row["row_type"] == "summary" and row["status"] in ["SAT_FOUND", "UNSAT_ALL"]:
+            return row
+
+    return None
+
+def get_experiment_sat_branch(experiment):
+    for row in get_experiment_rows(experiment):
+        if row["row_type"] == "branch" and row["status"] == "SAT":
+            return row
+
+    return None
+
+def get_completed_branches(experiment):
     completed = set()
 
-    if not results_file.exists():
-        return completed
+    for row in get_experiment_rows(experiment):
+        if row["row_type"] != "branch":
+            continue
 
-    with open(results_file, "r", newline="") as file:
-        reader = csv.DictReader(file)
+        if row["status"] not in ["SAT", "UNSAT"]:
+            continue
 
-        for row in reader:
-            if row["experiment"] != experiment:
-                continue
-
-            if row["row_type"] != "branch":
-                continue
-
-            if row["status"] not in ["SAT", "UNSAT"]:
-                continue
-
-            completed.add(row["branch_id"])
+        completed.add(row["branch_id"])
 
     return completed
 
-def divide_summary_exists(experiment):
-    results_file = get_results_file("divide")
+def get_previous_wall_time(experiment):
+    maximum = 0.0
 
-    if not results_file.exists():
-        return False
+    for row in get_experiment_rows(experiment):
+        value = row.get("experiment_wall_time", "")
 
-    with open(results_file, "r", newline="") as file:
-        reader = csv.DictReader(file)
+        if value == "":
+            continue
 
-        for row in reader:
-            if row["experiment"] != experiment:
-                continue
+        try:
+            maximum = max(maximum, float(value))
+        except ValueError:
+            pass
 
-            if row["row_type"] != "summary":
-                continue
+    return maximum
 
-            if row["status"] in ["SAT_FOUND", "UNSAT_ALL"]:
-                return True
+def refresh_summary_file():
+    rows = []
 
-    return False
+    for row in read_night_rows():
+        if row["row_type"] == "summary":
+            rows.append(row)
+
+    with open(NIGHT_SUMMARY_FILE, "w", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=night_header())
+        writer.writeheader()
+
+        for row in rows:
+            writer.writerow(row)
 
 def divide_branch_worker(branch_id, clauses, key_bits, true_key, result_queue):
     solve_start = perf_counter()
@@ -801,8 +498,7 @@ def divide_branch_worker(branch_id, clauses, key_bits, true_key, result_queue):
             "satisfiable": satisfiable,
             "correct": correct,
             "recovered_key": recovered_key,
-            "solve_time": solve_time,
-            "error": ""
+            "solve_time": solve_time
         })
 
     except Exception as error:
@@ -824,39 +520,158 @@ def terminate_processes(active_processes):
     for process in active_processes.values():
         process.join()
 
-def run_divide_experiment(kat_name, unknown_count, trial, split_bits, max_workers, deadline):
-    experiment = f"{kat_name}_random{trial}_{unknown_count}_split{split_bits}"
+def make_experiment_name(kat_name, unknown_count, base_trial, split_bits, divide_trial, max_workers):
+    return f"{kat_name}_random{base_trial}_{unknown_count}_split{split_bits}_divide{divide_trial}_workers{max_workers}"
 
-    if divide_summary_exists(experiment):
+def save_checkpoint(phase, experiment, kat_name, base_trial, base_seed, divide_trial, divide_seed, unknown_count, split_bits, split_positions, max_workers, total_wall_time, baseline_solve_time, variables, clauses, status):
+    save_night_row(
+        "checkpoint",
+        phase,
+        experiment,
+        kat_name,
+        base_trial,
+        base_seed,
+        divide_trial,
+        divide_seed,
+        unknown_count,
+        split_bits,
+        split_positions,
+        max_workers,
+        "",
+        None,
+        "",
+        status,
+        False,
+        False,
+        None,
+        0.0,
+        total_wall_time,
+        baseline_solve_time,
+        variables,
+        clauses
+    )
+
+def run_divide_experiment(phase, kat_name, unknown_count, base_trial, split_bits, divide_trial, max_workers):
+    experiment = make_experiment_name(
+        kat_name,
+        unknown_count,
+        base_trial,
+        split_bits,
+        divide_trial,
+        max_workers
+    )
+
+    existing_summary = get_experiment_summary(experiment)
+
+    if existing_summary is not None:
         print()
         print(experiment, "- ALREADY COMPLETED")
-        return True
+        return existing_summary
 
     case = get_kat_case(kat_name)
-    seed = get_random_seed(unknown_count, trial)
-    unknown_positions = get_unknown_positions(unknown_count, "random", seed)
-    split_positions = unknown_positions[:split_bits]
-    baseline_solve_time = get_random_baseline_solve_time(kat_name, unknown_count, trial)
+    base_seed = get_random_seed(unknown_count, base_trial)
+    unknown_positions = get_unknown_positions(unknown_count, "random", base_seed)
+
+    divide_seed, split_positions, assignments = get_divide_plan(
+        unknown_positions,
+        split_bits,
+        base_trial,
+        divide_trial
+    )
+
+    true_assignment = tuple(
+        key_bit_value(case["true_key"], position)
+        for position in split_positions
+    )
+
+    true_branch_id = "".join(str(bit) for bit in true_assignment)
+
+    assignment_order = {}
+
+    for index, assignment in enumerate(assignments, start=1):
+        branch_id = "".join(str(bit) for bit in assignment)
+        assignment_order[branch_id] = index
+
+    baseline_solve_time = get_random_baseline_solve_time(
+        kat_name,
+        unknown_count,
+        base_trial
+    )
+
+    completed_branches = get_completed_branches(experiment)
+    previous_wall_time = get_previous_wall_time(experiment)
+    pending = []
+
+    for assignment in assignments:
+        branch_id = "".join(str(bit) for bit in assignment)
+
+        if branch_id in completed_branches:
+            continue
+
+        pending.append(assignment)
+
+    sat_branch = get_experiment_sat_branch(experiment)
+
+    if sat_branch is not None:
+        recovered_key_text = sat_branch["recovered_key"]
+        recovered_key = bytes.fromhex(recovered_key_text) if recovered_key_text else None
+
+        save_night_row(
+            "summary",
+            phase,
+            experiment,
+            kat_name,
+            base_trial,
+            base_seed,
+            divide_trial,
+            divide_seed,
+            unknown_count,
+            split_bits,
+            split_positions,
+            max_workers,
+            sat_branch["branch_id"],
+            tuple(int(bit) for bit in sat_branch["assignment"]),
+            sat_branch["branch_order"],
+            "SAT_FOUND",
+            True,
+            sat_branch["correct"] == "True",
+            recovered_key,
+            float(sat_branch["branch_solve_time"]),
+            float(sat_branch["experiment_wall_time"]),
+            baseline_solve_time,
+            int(sat_branch["variables"]),
+            int(sat_branch["clauses"])
+        )
+
+        refresh_summary_file()
+        return get_experiment_summary(experiment)
 
     print()
     print("=====================================================")
-    print("DIVIDE-AND-CONQUER EXPERIMENT")
+    print("DIVIDE EXPERIMENT")
+    print("Phase:", phase)
     print("Experiment:", experiment)
-    print("KAT:", kat_name)
     print("Unknown bits:", unknown_count)
-    print("Trial:", trial)
-    print("Seed:", seed)
+    print("Base trial:", base_trial)
     print("Split bits:", split_bits)
     print("Branches:", 2 ** split_bits)
+    print("Workers:", max_workers)
+    print("Divide trial:", divide_trial)
     print("Split positions:", split_positions)
-    print("Maximum parallel workers:", max_workers)
+    print("True branch:", true_branch_id)
+    print("True branch order:", assignment_order[true_branch_id], "/", len(assignments))
+    print("Completed branches:", len(completed_branches))
+    print("Remaining branches:", len(pending))
 
     if baseline_solve_time is not None:
         print("Single Kissat baseline:", f"{baseline_solve_time:.2f} s")
 
+    if previous_wall_time > 0:
+        print("Previous recorded wall time:", f"{previous_wall_time:.2f} s")
+
     print("=====================================================")
     print()
-    print("Building base CNF...", flush=True)
+    print("Building CNF...", flush=True)
 
     instance = build_key_recovery_instance(
         case["true_key"],
@@ -868,46 +683,57 @@ def run_divide_experiment(kat_name, unknown_count, trial, split_bits, max_worker
         case["known_tag"]
     )
 
-    builder = instance["builder"]
-    key_bits = instance["key_bits"]
-    completed_branches = get_divide_completed_branches(experiment)
-    assignments = list(product([0, 1], repeat=split_bits))
-    pending = []
-
-    for assignment in assignments:
-        branch_id = "".join(str(bit) for bit in assignment)
-
-        if branch_id in completed_branches:
-            continue
-
-        pending.append(assignment)
-
     print("Build time:", f'{instance["build_time"]:.2f} s')
-    print("SAT variables:", instance["variables"])
-    print("CNF clauses:", instance["clauses"])
-    print("Already completed branches:", len(completed_branches))
-    print("Remaining branches:", len(pending))
+    print("Variables:", instance["variables"])
+    print("Clauses:", instance["clauses"])
     print()
 
     if len(pending) == 0:
-        print("All branches were already completed.")
-        return True
+        total_wall_time = previous_wall_time
+
+        save_night_row(
+            "summary",
+            phase,
+            experiment,
+            kat_name,
+            base_trial,
+            base_seed,
+            divide_trial,
+            divide_seed,
+            unknown_count,
+            split_bits,
+            split_positions,
+            max_workers,
+            "",
+            None,
+            "",
+            "UNSAT_ALL",
+            False,
+            False,
+            None,
+            0.0,
+            total_wall_time,
+            baseline_solve_time,
+            instance["variables"],
+            instance["clauses"]
+        )
+
+        refresh_summary_file()
+        return get_experiment_summary(experiment)
+
+    builder = instance["builder"]
+    key_bits = instance["key_bits"]
 
     context = get_context("fork")
     result_queue = context.Queue()
     active_processes = {}
     active_assignments = {}
-    experiment_start = perf_counter()
+
+    session_start = perf_counter()
+    last_checkpoint = session_start
 
     try:
         while pending or active_processes:
-            if perf_counter() >= deadline:
-                print()
-                print("Global night limit reached.")
-                print("Stopping active branches.")
-                terminate_processes(active_processes)
-                return False
-
             while pending and len(active_processes) < max_workers:
                 assignment = pending.pop(0)
                 branch_id = "".join(str(bit) for bit in assignment)
@@ -937,46 +763,59 @@ def run_divide_experiment(kat_name, unknown_count, trial, split_bits, max_worker
                 print(
                     "Started branch",
                     branch_id,
-                    "assignment",
-                    assignment,
+                    "| order",
+                    assignment_order[branch_id],
                     flush=True
                 )
+
+            now = perf_counter()
+
+            if now - last_checkpoint >= CHECKPOINT_SECONDS:
+                total_wall_time = previous_wall_time + (now - session_start)
+
+                save_checkpoint(
+                    phase,
+                    experiment,
+                    kat_name,
+                    base_trial,
+                    base_seed,
+                    divide_trial,
+                    divide_seed,
+                    unknown_count,
+                    split_bits,
+                    split_positions,
+                    max_workers,
+                    total_wall_time,
+                    baseline_solve_time,
+                    instance["variables"],
+                    instance["clauses"],
+                    "RUNNING"
+                )
+
+                last_checkpoint = now
 
             try:
                 result = result_queue.get(timeout=1)
 
             except Empty:
-                dead_branches = []
-
-                for branch_id, process in active_processes.items():
-                    if not process.is_alive():
-                        dead_branches.append(branch_id)
-
-                for branch_id in dead_branches:
-                    process = active_processes.pop(branch_id)
-                    process.join()
-                    active_assignments.pop(branch_id)
-
-                    print(
-                        "Branch",
-                        branch_id,
-                        "ended without a result.",
-                        flush=True
-                    )
-
                 continue
 
             branch_id = result["branch_id"]
+
+            if branch_id not in active_processes:
+                continue
+
             assignment = active_assignments.pop(branch_id)
             process = active_processes.pop(branch_id)
             process.join()
 
-            experiment_wall_time = perf_counter() - experiment_start
+            total_wall_time = previous_wall_time + (perf_counter() - session_start)
 
-            print()
             print(
                 "Branch",
                 branch_id,
+                "| order",
+                assignment_order[branch_id],
                 "|",
                 result["status"],
                 "|",
@@ -986,412 +825,470 @@ def run_divide_experiment(kat_name, unknown_count, trial, split_bits, max_worker
                 flush=True
             )
 
-            save_divide_row(
+            save_night_row(
                 "branch",
+                phase,
                 experiment,
                 kat_name,
-                trial,
-                seed,
+                base_trial,
+                base_seed,
+                divide_trial,
+                divide_seed,
                 unknown_count,
                 split_bits,
                 split_positions,
                 max_workers,
                 branch_id,
                 assignment,
+                assignment_order[branch_id],
                 result["status"],
                 result["satisfiable"],
                 result["correct"],
                 result["recovered_key"],
                 result["solve_time"],
-                experiment_wall_time,
+                total_wall_time,
                 baseline_solve_time,
                 instance["variables"],
                 instance["clauses"]
             )
 
-            if result["satisfiable"]:
-                print()
-                print("SAT branch found:", branch_id)
-                print("Correct key:", result["correct"])
-                print("Stopping all remaining branches.")
-
+            if result["status"] == "ERROR":
+                print("A branch returned ERROR. Stopping this experiment.")
                 terminate_processes(active_processes)
 
-                experiment_wall_time = perf_counter() - experiment_start
-
-                save_divide_row(
-                    "summary",
+                save_checkpoint(
+                    phase,
                     experiment,
                     kat_name,
-                    trial,
-                    seed,
+                    base_trial,
+                    base_seed,
+                    divide_trial,
+                    divide_seed,
+                    unknown_count,
+                    split_bits,
+                    split_positions,
+                    max_workers,
+                    total_wall_time,
+                    baseline_solve_time,
+                    instance["variables"],
+                    instance["clauses"],
+                    "ERROR"
+                )
+
+                return None
+
+            if result["satisfiable"]:
+                terminate_processes(active_processes)
+                total_wall_time = previous_wall_time + (perf_counter() - session_start)
+
+                save_night_row(
+                    "summary",
+                    phase,
+                    experiment,
+                    kat_name,
+                    base_trial,
+                    base_seed,
+                    divide_trial,
+                    divide_seed,
                     unknown_count,
                     split_bits,
                     split_positions,
                     max_workers,
                     branch_id,
                     assignment,
+                    assignment_order[branch_id],
                     "SAT_FOUND",
                     True,
                     result["correct"],
                     result["recovered_key"],
                     result["solve_time"],
-                    experiment_wall_time,
+                    total_wall_time,
                     baseline_solve_time,
                     instance["variables"],
                     instance["clauses"]
                 )
 
-                print("Experiment wall time:", f"{experiment_wall_time:.2f} s")
+                refresh_summary_file()
+
+                print()
+                print("SAT branch found:", branch_id)
+                print("Branch order:", assignment_order[branch_id])
+                print("Correct key:", result["correct"])
+                print("Wall time:", f"{total_wall_time:.2f} s")
 
                 if baseline_solve_time is not None:
-                    speedup = baseline_solve_time / experiment_wall_time
+                    speedup = baseline_solve_time / total_wall_time
                     print("Speedup vs single Kissat:", f"{speedup:.2f}x")
 
-                return True
+                return get_experiment_summary(experiment)
 
-        experiment_wall_time = perf_counter() - experiment_start
+        total_wall_time = previous_wall_time + (perf_counter() - session_start)
 
-        save_divide_row(
+        save_night_row(
             "summary",
+            phase,
             experiment,
             kat_name,
-            trial,
-            seed,
+            base_trial,
+            base_seed,
+            divide_trial,
+            divide_seed,
             unknown_count,
             split_bits,
             split_positions,
             max_workers,
             "",
             None,
+            "",
             "UNSAT_ALL",
             False,
             False,
             None,
             0.0,
-            experiment_wall_time,
+            total_wall_time,
             baseline_solve_time,
             instance["variables"],
             instance["clauses"]
         )
 
-        print()
-        print("All branches returned UNSAT.")
-        return True
+        refresh_summary_file()
+        return get_experiment_summary(experiment)
 
     except KeyboardInterrupt:
+        total_wall_time = previous_wall_time + (perf_counter() - session_start)
+
         print()
-        print("Divide experiment interrupted by user.")
+        print("Stopping active branches...")
+
         terminate_processes(active_processes)
-        print("Completed branches are already saved.")
-        return False
 
-def run_divide_night(hours):
-    night_start = perf_counter()
-    deadline = night_start + hours * 3600
-
-    print()
-    print("=====================================================")
-    print("GIFT-COFB NIGHT DIVIDE-AND-CONQUER ANALYSIS")
-    print("Maximum runtime:", hours, "hours")
-    print("KAT:", DIVIDE_KAT)
-    print("Unknown bits:", DIVIDE_UNKNOWN_COUNT)
-    print("Trial:", DIVIDE_TRIAL)
-    print("Split counts:", DIVIDE_SPLIT_COUNTS)
-    print("Parallel Kissat workers:", DIVIDE_MAX_WORKERS)
-    print("Results file:", get_results_file("divide"))
-    print("=====================================================")
-
-    for split_bits in DIVIDE_SPLIT_COUNTS:
-        if perf_counter() >= deadline:
-            print()
-            print("Global night limit reached before next experiment.")
-            break
-
-        completed = run_divide_experiment(
-            DIVIDE_KAT,
-            DIVIDE_UNKNOWN_COUNT,
-            DIVIDE_TRIAL,
+        save_checkpoint(
+            phase,
+            experiment,
+            kat_name,
+            base_trial,
+            base_seed,
+            divide_trial,
+            divide_seed,
+            unknown_count,
             split_bits,
-            DIVIDE_MAX_WORKERS,
-            deadline
-        )
-
-        if not completed and perf_counter() >= deadline:
-            break
-
-        if not completed:
-            print()
-            print("Current experiment was not completed.")
-            print("Run the same command later to resume.")
-            break
-
-    total_time = perf_counter() - night_start
-
-    print()
-    print("=====================================================")
-    print("NIGHT DIVIDE ANALYSIS STOPPED")
-    print("Runtime:", f"{total_time / 3600:.2f} h")
-    print("Completed results are saved in:")
-    print(get_results_file("divide"))
-    print("Run the same command to resume.")
-    print("=====================================================")
-
-def run_position_analysis(kat_name, position_mode):
-    case = get_kat_case(kat_name)
-
-    for unknown_count in UNKNOWN_COUNTS:
-        unknown_positions = get_unknown_positions(unknown_count, position_mode)
-
-        result = recover_key_gift_cofb(
-            true_key=case["true_key"],
-            unknown_positions=unknown_positions,
-            nonce=case["nonce"],
-            associated_data=case["associated_data"],
-            message=case["message"],
-            known_ciphertext=case["known_ciphertext"],
-            known_tag=case["known_tag"],
-            check_unique=False
-        )
-
-        recovered_key = result["recovered_key"]
-        correct = recovered_key == case["true_key"]
-
-        save_position_result(
-            kat_name,
-            position_mode,
-            unknown_count,
-            unknown_positions,
-            result,
-            correct
-        )
-
-def run_random_analysis(kat_name):
-    case = get_kat_case(kat_name)
-
-    for unknown_count in UNKNOWN_COUNTS:
-        for trial in range(1, RANDOM_TRIALS + 1):
-            if random_result_exists(kat_name, unknown_count, trial):
-                continue
-
-            seed = get_random_seed(unknown_count, trial)
-            unknown_positions = get_unknown_positions(unknown_count, "random", seed)
-
-            result = recover_key_gift_cofb(
-                true_key=case["true_key"],
-                unknown_positions=unknown_positions,
-                nonce=case["nonce"],
-                associated_data=case["associated_data"],
-                message=case["message"],
-                known_ciphertext=case["known_ciphertext"],
-                known_tag=case["known_tag"],
-                check_unique=False
-            )
-
-            recovered_key = result["recovered_key"]
-            correct = recovered_key == case["true_key"]
-
-            save_random_result(
-                kat_name,
-                trial,
-                seed,
-                unknown_count,
-                unknown_positions,
-                result,
-                correct
-            )
-
-def run_all_analysis(position_mode):
-    for kat_name in KAT_NAMES:
-        if position_mode == "random":
-            run_random_analysis(kat_name)
-        else:
-            run_position_analysis(kat_name, position_mode)
-
-def get_uniqueness_cases():
-    cases = []
-
-    for kat_name in KAT_NAMES:
-        cases.append({
-            "case_name": f"{kat_name}_last_{UNIQUENESS_UNKNOWN_COUNT}",
-            "kat_name": kat_name,
-            "position_mode": "last",
-            "trial": 0,
-            "seed": 0
-        })
-
-        cases.append({
-            "case_name": f"{kat_name}_first_{UNIQUENESS_UNKNOWN_COUNT}",
-            "kat_name": kat_name,
-            "position_mode": "first",
-            "trial": 0,
-            "seed": 0
-        })
-
-        for trial in range(1, RANDOM_TRIALS + 1):
-            cases.append({
-                "case_name": f"{kat_name}_random_{UNIQUENESS_UNKNOWN_COUNT}_trial{trial}",
-                "kat_name": kat_name,
-                "position_mode": "random",
-                "trial": trial,
-                "seed": get_random_seed(UNIQUENESS_UNKNOWN_COUNT, trial)
-            })
-
-    return cases
-
-def run_uniqueness_analysis():
-    uniqueness_cases = get_uniqueness_cases()
-
-    for uniqueness_case in uniqueness_cases:
-        case_name = uniqueness_case["case_name"]
-        kat_name = uniqueness_case["kat_name"]
-        position_mode = uniqueness_case["position_mode"]
-        trial = uniqueness_case["trial"]
-        seed = uniqueness_case["seed"]
-
-        if uniqueness_result_exists(case_name):
-            continue
-
-        case = get_kat_case(kat_name)
-
-        if position_mode == "random":
-            unknown_positions = get_unknown_positions(UNIQUENESS_UNKNOWN_COUNT, position_mode, seed)
-        else:
-            unknown_positions = get_unknown_positions(UNIQUENESS_UNKNOWN_COUNT, position_mode)
-
-        result = recover_key_gift_cofb(
-            true_key=case["true_key"],
-            unknown_positions=unknown_positions,
-            nonce=case["nonce"],
-            associated_data=case["associated_data"],
-            message=case["message"],
-            known_ciphertext=case["known_ciphertext"],
-            known_tag=case["known_tag"],
-            check_unique=True
-        )
-
-        recovered_key = result["recovered_key"]
-        correct = recovered_key == case["true_key"]
-
-        save_uniqueness_result(
-            case_name,
-            kat_name,
-            position_mode,
-            trial,
-            seed,
-            UNIQUENESS_UNKNOWN_COUNT,
-            unknown_positions,
-            result,
-            correct
-        )
-
-def run_solver_benchmark(kat_name="count1", unknown_count=SOLVER_BENCHMARK_UNKNOWN_COUNT, trial=SOLVER_BENCHMARK_TRIAL, timeout_seconds=SOLVER_TIMEOUT_SECONDS):
-    case = get_kat_case(kat_name)
-    seed = get_random_seed(unknown_count, trial)
-    unknown_positions = get_unknown_positions(unknown_count, "random", seed)
-
-    instance = build_key_recovery_instance(
-        case["true_key"],
-        unknown_positions,
-        case["nonce"],
-        case["associated_data"],
-        case["message"],
-        case["known_ciphertext"],
-        case["known_tag"]
-    )
-
-    builder = instance["builder"]
-    key_bits = instance["key_bits"]
-
-    for solver_name, solver_class in SOLVERS:
-        if solver_result_exists(kat_name, unknown_count, trial, solver_name):
-            continue
-
-        try:
-            result = run_solver_with_timeout(
-                solver_name,
-                builder.cnf.clauses,
-                key_bits,
-                case["true_key"],
-                timeout_seconds
-            )
-
-        except KeyboardInterrupt:
-            return
-
-        save_solver_result(
-            kat_name,
-            "random",
-            trial,
-            seed,
-            unknown_count,
-            unknown_positions,
-            solver_name,
-            instance["build_time"],
-            result["solve_time"],
-            result["satisfiable"],
-            result["correct"],
-            result["recovered_key"],
+            split_positions,
+            max_workers,
+            total_wall_time,
+            baseline_solve_time,
             instance["variables"],
             instance["clauses"],
-            result["status"],
-            result["error"]
+            "PAUSED"
         )
 
+        print("Experiment paused.")
+        print("Completed branches and wall time are saved.")
+        print("Run the same command to resume.")
+        return None
+
+def summary_wall_time(kat_name, unknown_count, base_trial, split_bits, divide_trial, workers):
+    experiment = make_experiment_name(
+        kat_name,
+        unknown_count,
+        base_trial,
+        split_bits,
+        divide_trial,
+        workers
+    )
+
+    summary = get_experiment_summary(experiment)
+
+    if summary is None:
+        return None
+
+    return float(summary["experiment_wall_time"])
+
+def choose_best_workers():
+    results = []
+
+    for workers in WORKER_COUNTS:
+        wall_time = summary_wall_time(
+            NIGHT_KAT,
+            NIGHT_UNKNOWN_COUNT,
+            NIGHT_BASE_TRIAL,
+            WORKER_TUNING_SPLIT_BITS,
+            WORKER_TUNING_DIVIDE_TRIAL,
+            workers
+        )
+
+        if wall_time is not None:
+            results.append((wall_time, workers))
+
+    if len(results) != len(WORKER_COUNTS):
+        return None
+
+    results.sort()
+    return results[0][1]
+
+def choose_best_split(best_workers):
+    split_results = []
+
+    for split_bits in SPLIT_COUNTS:
+        times = []
+
+        for divide_trial in DIVIDE_TRIALS:
+            wall_time = summary_wall_time(
+                NIGHT_KAT,
+                NIGHT_UNKNOWN_COUNT,
+                NIGHT_BASE_TRIAL,
+                split_bits,
+                divide_trial,
+                best_workers
+            )
+
+            if wall_time is not None:
+                times.append(wall_time)
+
+        if len(times) != len(DIVIDE_TRIALS):
+            return None
+
+        average_time = sum(times) / len(times)
+        split_results.append((average_time, split_bits))
+
+    split_results.sort()
+    return split_results[0][1]
+
+def print_worker_summary():
+    baseline = get_random_baseline_solve_time(
+        NIGHT_KAT,
+        NIGHT_UNKNOWN_COUNT,
+        NIGHT_BASE_TRIAL
+    )
+
+    print()
+    print("WORKER SCALING SUMMARY")
+    print("Workers | Wall time | Speedup")
+
+    for workers in WORKER_COUNTS:
+        wall_time = summary_wall_time(
+            NIGHT_KAT,
+            NIGHT_UNKNOWN_COUNT,
+            NIGHT_BASE_TRIAL,
+            WORKER_TUNING_SPLIT_BITS,
+            WORKER_TUNING_DIVIDE_TRIAL,
+            workers
+        )
+
+        if wall_time is None:
+            print(workers, "| missing")
+            continue
+
+        if baseline is None:
+            print(workers, "|", f"{wall_time:.2f}s")
+        else:
+            print(workers, "|", f"{wall_time:.2f}s", "|", f"{baseline / wall_time:.2f}x")
+
+def print_split_summary(best_workers):
+    print()
+    print("SPLIT DEPTH SUMMARY")
+    print("Split bits | Average wall time")
+
+    for split_bits in SPLIT_COUNTS:
+        times = []
+
+        for divide_trial in DIVIDE_TRIALS:
+            wall_time = summary_wall_time(
+                NIGHT_KAT,
+                NIGHT_UNKNOWN_COUNT,
+                NIGHT_BASE_TRIAL,
+                split_bits,
+                divide_trial,
+                best_workers
+            )
+
+            if wall_time is not None:
+                times.append(wall_time)
+
+        if len(times) == 0:
+            print(split_bits, "| missing")
+        else:
+            print(split_bits, "|", f"{sum(times) / len(times):.2f}s", "| trials:", len(times))
+
+def run_phase_worker_scaling():
+    print()
+    print("#####################################################")
+    print("PHASE 1 - CLEAN WORKER SCALING")
+    print("#####################################################")
+
+    for workers in WORKER_COUNTS:
+        result = run_divide_experiment(
+            "worker_scaling",
+            NIGHT_KAT,
+            NIGHT_UNKNOWN_COUNT,
+            NIGHT_BASE_TRIAL,
+            WORKER_TUNING_SPLIT_BITS,
+            WORKER_TUNING_DIVIDE_TRIAL,
+            workers
+        )
+
+        if result is None:
+            return False
+
+    print_worker_summary()
+    return True
+
+def run_phase_split_depth(best_workers):
+    print()
+    print("#####################################################")
+    print("PHASE 2 - SPLIT DEPTH")
+    print("Workers:", best_workers)
+    print("#####################################################")
+
+    for split_bits in SPLIT_COUNTS:
+        for divide_trial in DIVIDE_TRIALS:
+            result = run_divide_experiment(
+                "split_depth",
+                NIGHT_KAT,
+                NIGHT_UNKNOWN_COUNT,
+                NIGHT_BASE_TRIAL,
+                split_bits,
+                divide_trial,
+                best_workers
+            )
+
+            if result is None:
+                return False
+
+    print_split_summary(best_workers)
+    return True
+
+def run_phase_generalization(best_workers, best_split):
+    print()
+    print("#####################################################")
+    print("PHASE 3 - OTHER RANDOM 20-BIT INSTANCES")
+    print("Workers:", best_workers)
+    print("Split bits:", best_split)
+    print("#####################################################")
+
+    for base_trial in GENERALIZATION_BASE_TRIALS:
+        for divide_trial in DIVIDE_TRIALS:
+            result = run_divide_experiment(
+                "generalization20",
+                NIGHT_KAT,
+                NIGHT_UNKNOWN_COUNT,
+                base_trial,
+                best_split,
+                divide_trial,
+                best_workers
+            )
+
+            if result is None:
+                return False
+
+    return True
+
+def run_phase_challenge22(best_workers, best_split):
+    print()
+    print("#####################################################")
+    print("PHASE 4 - 22 UNKNOWN BITS CHALLENGE")
+    print("Workers:", best_workers)
+    print("Split bits:", best_split)
+    print("#####################################################")
+
+    for divide_trial in DIVIDE_TRIALS:
+        result = run_divide_experiment(
+            "challenge22",
+            NIGHT_KAT,
+            CHALLENGE_UNKNOWN_COUNT,
+            CHALLENGE_BASE_TRIAL,
+            best_split,
+            divide_trial,
+            best_workers
+        )
+
+        if result is None:
+            return False
+
+    return True
+
+def print_final_summary(best_workers, best_split):
+    print()
+    print("=====================================================")
+    print("NIGHT STUDY FINISHED")
+    print("Best workers from tuning:", best_workers)
+    print("Best split bits from 20-bit study:", best_split)
+    print("Full results:", NIGHT_RESULTS_FILE)
+    print("Summary results:", NIGHT_SUMMARY_FILE)
+    print("=====================================================")
+
+def run_night_study():
+    print()
+    print("=====================================================")
+    print("GIFT-COFB DIVIDE-AND-CONQUER NIGHT STUDY")
+    print("NO TIME LIMIT")
+    print()
+    print("Phase 1: clean worker scaling 1/2/4/6/8")
+    print("Phase 2: split depth 3/4/5/6, three randomized trials")
+    print("Phase 3: random20 base trials 2 and 3")
+    print("Phase 4: 22 unknown bits challenge")
+    print()
+    print("Press Ctrl+C whenever you need to stop.")
+    print("Run the same command later to resume.")
+    print("Checkpoint every:", CHECKPOINT_SECONDS, "seconds")
+    print("=====================================================")
+
+    if not run_phase_worker_scaling():
+        return
+
+    best_workers = choose_best_workers()
+
+    if best_workers is None:
+        print("Could not determine best worker count yet.")
+        return
+
+    print()
+    print("Selected workers for next phases:", best_workers)
+
+    if not run_phase_split_depth(best_workers):
+        return
+
+    best_split = choose_best_split(best_workers)
+
+    if best_split is None:
+        print("Could not determine best split depth yet.")
+        return
+
+    print()
+    print("Selected split bits for next phases:", best_split)
+
+    if not run_phase_generalization(best_workers, best_split):
+        return
+
+    if not run_phase_challenge22(best_workers, best_split):
+        return
+
+    print_final_summary(best_workers, best_split)
+
 def main():
-    if len(sys.argv) >= 2 and sys.argv[1] == "divide-night":
-        hours = 10.0
-
-        if len(sys.argv) >= 3:
-            hours = float(sys.argv[2])
-
-        run_divide_night(hours)
+    if len(sys.argv) >= 2 and sys.argv[1] == "night-study":
+        run_night_study()
         return
 
-    if len(sys.argv) >= 2 and sys.argv[1] == "uniqueness":
-        run_uniqueness_analysis()
+    if len(sys.argv) >= 2 and sys.argv[1] == "status":
+        print_worker_summary()
+
+        best_workers = choose_best_workers()
+
+        if best_workers is not None:
+            print()
+            print("Current best workers:", best_workers)
+            print_split_summary(best_workers)
+
+            best_split = choose_best_split(best_workers)
+
+            if best_split is not None:
+                print("Current best split bits:", best_split)
+
         return
 
-    if len(sys.argv) >= 2 and sys.argv[1] == "solvers":
-        kat_name = "count1"
-        unknown_count = SOLVER_BENCHMARK_UNKNOWN_COUNT
-        trial = SOLVER_BENCHMARK_TRIAL
-        timeout_seconds = SOLVER_TIMEOUT_SECONDS
-
-        if len(sys.argv) >= 3:
-            kat_name = sys.argv[2]
-
-        if len(sys.argv) >= 4:
-            unknown_count = int(sys.argv[3])
-
-        if len(sys.argv) >= 5:
-            trial = int(sys.argv[4])
-
-        if len(sys.argv) >= 6:
-            timeout_seconds = int(sys.argv[5])
-
-        run_solver_benchmark(kat_name, unknown_count, trial, timeout_seconds)
-        return
-
-    if len(sys.argv) < 3:
-        print("Usage:")
-        print("python3 -m src.gift_cofb_analysis divide-night 10")
-        print("python3 -m src.gift_cofb_analysis uniqueness")
-        print("python3 -m src.gift_cofb_analysis solvers count1089 16 1 1800")
-        print("python3 -m src.gift_cofb_analysis all random")
-        return
-
-    kat_name = sys.argv[1]
-    position_mode = sys.argv[2]
-
-    if kat_name == "all":
-        run_all_analysis(position_mode)
-        return
-
-    if position_mode == "random":
-        run_random_analysis(kat_name)
-    else:
-        run_position_analysis(kat_name, position_mode)
+    print("Usage:")
+    print("python3 -m src.gift_cofb_analysis night-study")
+    print("python3 -m src.gift_cofb_analysis status")
 
 if __name__ == "__main__":
     main()
