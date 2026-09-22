@@ -1,0 +1,9 @@
+kat,solver,unknown_bits,solve_time_s,status,correct
+count1,Kissat404,16,305.3332689999952,OK,True
+count1,Cadical300,16,950.7066770419988,OK,True
+count1,Glucose42,16,392.7450026669976,OK,True
+count1,MapleChrono,16,470.1070515829997,OK,True
+count1,Mergesat3,16,596.7920284580032,OK,True
+count1089,Kissat404,16,221.790638708997,OK,True
+count1089,Glucose42,16,1800.0350396669965,TIMEOUT,False
+count1089,MapleChrono,16,1800.0268573750072,TIMEOUT,False
