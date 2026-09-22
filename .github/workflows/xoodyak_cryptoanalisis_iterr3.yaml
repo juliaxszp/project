@@ -1,0 +1,128 @@
+name: Xoodyak SAT cryptanalysis v3
+
+on:
+  workflow_dispatch:
+
+jobs:
+  cryptoanalysis:
+    name: ${{ matrix.solver }}-set${{ matrix.set }}-part${{ matrix.part }}
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 360
+
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+
+      matrix:
+        include:
+          - solver: Kissat404
+            set: 1
+            part: 1
+          - solver: Kissat404
+            set: 2
+            part: 1
+          - solver: Kissat404
+            set: 3
+            part: 1
+          - solver: Kissat404
+            set: 4
+            part: 1
+          - solver: Kissat404
+            set: 5
+            part: 1
+          - solver: Kissat404
+            set: 6
+            part: 1
+          - solver: Kissat404
+            set: 7
+            part: 1
+          - solver: Kissat404
+            set: 8
+            part: 1
+          - solver: Kissat404
+            set: 9
+            part: 1
+          - solver: Kissat404
+            set: 10
+            part: 1
+
+          - solver: Kissat404
+            set: 1
+            part: 2
+          - solver: Kissat404
+            set: 2
+            part: 2
+          - solver: Kissat404
+            set: 3
+            part: 2
+          - solver: Kissat404
+            set: 4
+            part: 2
+          - solver: Kissat404
+            set: 5
+            part: 2
+          - solver: Kissat404
+            set: 6
+            part: 2
+          - solver: Kissat404
+            set: 7
+            part: 2
+          - solver: Kissat404
+            set: 8
+            part: 2
+          - solver: Kissat404
+            set: 9
+            part: 2
+          - solver: Kissat404
+            set: 10
+            part: 2
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: Adam
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install SAT solver
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential git
+
+          git clone https://github.com/arminbiere/kissat.git
+          cd kissat
+          ./configure
+          make -j$(nproc)
+          sudo cp build/kissat /usr/local/bin/kissat
+          cd ..
+
+          echo "Checking installed solver:"
+          which kissat
+          kissat --version
+
+      - name: Run cryptanalysis
+        run: |
+          python -m src.xoodyak_cryptoanalisis_iterr3 \
+            --solver "${{ matrix.solver }}" \
+            --set "${{ matrix.set }}" \
+            --part "${{ matrix.part }}"
+
+      - name: Upload result
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: result-${{ matrix.solver }}-set${{ matrix.set }}-part${{ matrix.part }}
+          path: wyniki_${{ matrix.solver }}_zestaw_${{ matrix.set }}_${{ matrix.part }}_z_2.json
+          if-no-files-found: warn
+          retention-days: 30
