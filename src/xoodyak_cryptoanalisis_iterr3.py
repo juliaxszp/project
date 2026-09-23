@@ -256,7 +256,7 @@ def kryptoanaliza(solver_name, nr_zestawu, part):
         poczatek_limitu = time.perf_counter()
 
         proces.start()
-        proces.join(720)
+        proces.join(360)
 
         if proces.is_alive():
             proces.terminate()
@@ -320,7 +320,7 @@ def manager():
         "solver": solver_name,
         "set": nr_zestawu,
         "part": part,
-        "timeout_seconds": 720,
+        "timeout_seconds": 360,
         "wyniki": wyniki
     }
 
