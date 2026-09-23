@@ -1,8 +1,8 @@
-# project
+# pytest cache directory #
 
+This directory contains data from the pytest's cache plugin,
+which provides the `--lf` and `--ff` options, as well as the `cache` fixture.
 
-## Środowisko wirtualne (venv)
+**Do not** commit this to version control.
 
-> python3 -m venv venv\
-> source venv/bin/activate\
-> pip install -r requirements.txt\
+See [the docs](https://docs.pytest.org/en/stable/how-to/cache.html) for more information.
