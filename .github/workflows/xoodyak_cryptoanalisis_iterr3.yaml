@@ -1,4 +1,4 @@
-name: Xoodyak SAT cryptanalysis v3
+name: Xoodyak SAT cryptanalysis iterration 3
 
 on:
   workflow_dispatch:
@@ -17,65 +17,65 @@ jobs:
 
       matrix:
         include:
-          - solver: Kissat404
+          - solver: CryptoMinisat
             set: 1
             part: 1
-          - solver: Kissat404
+          - solver: CryptoMinisat
             set: 2
             part: 1
-          - solver: Kissat404
+          - solver: CryptoMinisat
             set: 3
             part: 1
-          - solver: Kissat404
+          - solver: CryptoMinisat
             set: 4
             part: 1
-          - solver: Kissat404
+          - solver: CryptoMinisat
             set: 5
             part: 1
-          - solver: Kissat404
+          - solver: CryptoMinisat
             set: 6
             part: 1
-          - solver: Kissat404
+          - solver: CryptoMinisat
             set: 7
             part: 1
-          - solver: Kissat404
+          - solver: CryptoMinisat
             set: 8
             part: 1
-          - solver: Kissat404
+          - solver: CryptoMinisat
             set: 9
             part: 1
-          - solver: Kissat404
+          - solver: CryptoMinisat
             set: 10
             part: 1
 
-          - solver: Kissat404
+          - solver: CryptoMinisat
             set: 1
             part: 2
-          - solver: Kissat404
+          - solver: CryptoMinisat
             set: 2
             part: 2
-          - solver: Kissat404
+          - solver: CryptoMinisat
             set: 3
             part: 2
-          - solver: Kissat404
+          - solver: CryptoMinisat
             set: 4
             part: 2
-          - solver: Kissat404
+          - solver: CryptoMinisat
             set: 5
             part: 2
-          - solver: Kissat404
+          - solver: CryptoMinisat
             set: 6
             part: 2
-          - solver: Kissat404
+          - solver: CryptoMinisat
             set: 7
             part: 2
-          - solver: Kissat404
+          - solver: CryptoMinisat
             set: 8
             part: 2
-          - solver: Kissat404
+          - solver: CryptoMinisat
             set: 9
             part: 2
-          - solver: Kissat404
+          - solver: CryptoMinisat
             set: 10
             part: 2
 
