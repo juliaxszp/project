@@ -131,3 +131,28 @@ Use primarily:
 - `gift_cofb_analysis_results_divide_curve_summary.csv`
 
 Keep the raw divide CSV files in the repository as provenance/debug data, but use the summary files for figures and tables.
+
+## Final result generation
+
+Final figures, compact tables and the numerical summary are generated directly from the committed CSV files:
+
+```bash
+python3 analysis/gift_cofb/final_results.py
+```
+
+Generated figures:
+
+- `figures/baseline_vs_divide.png` — Single Kissat vs divide-and-conquer, logarithmic Y axis, divide min–max range.
+- `figures/speedup.png` — average speedup with the 1× break-even line.
+- `figures/worker_scaling.png` — wall time for 1, 2, 4, 6 and 8 workers.
+- `figures/split_depth.png` — comparison of split depths 3, 4, 5 and 6.
+
+Generated tables:
+
+- `tables/final_curve.csv`
+- `tables/worker_scaling.csv`
+- `tables/split_depth.csv`
+- `tables/solver_comparison.csv`
+- `tables/uniqueness.csv`
+
+The script also generates `FINAL_SUMMARY.md` with the headline numerical conclusions and the methodology caveat.
